@@ -1,0 +1,493 @@
+#include <Arduino.h>
+#include "Babelfish.h"
+
+// Definitions of motor+controller, and display.
+MotorController motor;
+Display display;
+
+// Data structure to retain packet ID's to suppress printing of unchanged data
+
+// The maximum size of a packet as read from the CAN bus
+#define DATA_SIZE   32
+
+// Number of distinct packet ID's to be checked on
+#define PACKETS     48
+
+// Size of data to be checked.
+// May be smaller than DATA_SIZE, to save memory on the 32u4 (only 2.5k bytes!)
+#define CHECK_SIZE  8
+
+typedef struct Packet
+{
+  uint32_t  id;                   // ID of packets in this entry
+  uint16_t  repeats;              // How many times this packet ID has been seen
+  uint8_t   length;               // Actual length
+  uint8_t   check[CHECK_SIZE];    // The first <= CHECK_SIZE bytes of the payload
+} Packet;
+
+static Packet packets[PACKETS];
+static int num_packets = 0;       // Number of slots in the packet ID array
+
+// Helper to extract two data bytes from a packet.
+uint16_t raw_2bytes(uint8_t b0, uint8_t b1)
+{
+   return ((uint16_t)b1 << 8) | b0;
+}
+
+
+// TODO Get rid of the sprintf's. They account for ~1600 bytes of program
+
+
+#ifdef OLD_FORMAT
+// Helper to print a two byte raw as a 0-2 decimal place float.
+// e.g. E8 03 == 03E8 == 1000 = "10.00" to 2 places
+//      C0 08 == 08C0 == 2240 = "2240" to 0 places
+char *format_dec(uint16_t raw, int places, char *buf)
+{
+   switch (places)
+   {
+   case 0:
+      sprintf(buf, "%d", raw);
+      break;
+   case 1:
+      sprintf(buf, "%d.%d", raw / 10, raw % 10);
+      break;
+   case 2:
+      sprintf(buf, "%d.%d", raw / 100, raw % 100);    // TODO there is bug here - 27.03 and 27.30 will print the same! Need leading 0
+      break;
+   }
+   return buf;
+}
+
+#else
+// a version without sprintf's. Format and print.
+void format_dec_and_print(uint16_t raw, int places)
+{
+  uint16_t frac;
+
+   switch (places)
+   {
+   case 0:
+      Serial.print(raw);
+      break;
+   case 1:
+      Serial.print(raw / 10);   // integer part
+      Serial.print(".");
+      Serial.print(raw % 10);   // fractional part is always 1 digit
+      break;
+   case 2:
+      Serial.print(raw / 100);
+      Serial.print(".");
+      frac = raw % 100;
+      if (frac < 10)
+        Serial.print("0");      // insert the leading zero if frac is 1 digit
+      Serial.print(frac);
+      break;
+   }
+}
+
+#endif
+
+// Helper to print a wheel size. THe lower nibble is a decimal fraction (not hex)
+// e.g. B5 01 = 01B5 = 1Bhex . 5 = 27.5
+// Always print to 1 decimal place
+void format_wheelsize_and_print(uint8_t b0, uint8_t b1)
+{
+   int raw = raw_2bytes(b0, b1);
+   int whole = raw >> 4;
+   int frac = raw & 0xF;
+   format_dec_and_print(whole * 10 + frac, 1);
+}
+
+// Echo the packet length and data, for those packets we wish to 
+// respond to.
+void echo(uint32_t id, int indx, int packetSize, uint8_t data[])
+{
+  int i;
+  char buf[16];
+
+  Serial.print(millis());
+  Serial.print(": ");
+  Serial.print(id, HEX);
+  if (indx >= 0)      // print index in the packet ID array
+  {
+    Serial.print("[");
+    Serial.print(indx);
+    Serial.print("]");
+  }
+  Serial.print(" ");
+  Serial.print(packetSize);
+
+  for (i = 0; i < packetSize; i++)
+  {
+    Serial.print(" ");
+    if (data[i] < 16)
+      Serial.print("0");
+    Serial.print(data[i], HEX);
+  }
+
+  // pad out to 8 bytes formatted width
+  for ( ; i < 8; i++)
+      Serial.print("   ");
+}
+
+// Echo the tail end of the packet, printing the repeat count if we are
+// suppressing repeats, and a new line in any case.
+void echo_tail(int verbosity, uint16_t repeats)
+{
+  if (verbosity == 1)
+  {
+    Serial.print(" [");
+    Serial.print(repeats);
+    Serial.print("]");
+  }
+  Serial.println();
+}
+
+// Scan the CAN bus for a packet and interpret it to various
+// globals, and (optionally) print it to serial.
+//
+// mcp        MCP2515 instance
+
+// connected  if true, we are connected to a BLE central  
+
+// verbosity  0 = don't print any packets
+//            1 = print all packets with changed data (suppress repeats)
+//            2 = print known packets with known ID
+//            3 = print all packets.
+//
+// Returns:   1 if a speed packet was received so we can
+//            update the BLE characteristics, else 0
+//
+
+int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity)
+{
+  char buf[16];
+  uint32_t id;
+  int i;
+  uint8_t data[DATA_SIZE];
+  uint16_t rpm;
+  int rc = false;
+  uint16_t reps = 0;
+
+  // weird mapping for 5-level PAS
+  uint8_t pas_byte[6] = {0, 0x0B, 0x0D, 0x15, 0x17, 0x03};
+
+  // try to parse packet
+  int packetSize = mcp.parsePacket();
+  if (!packetSize)
+    return false;
+  if (packetSize > DATA_SIZE)
+    packetSize = DATA_SIZE;
+
+  // received a packet
+  if (mcp.packetRtr()) {
+    // Remote transmission request, packet contains no data
+    Serial.print("RTR ");
+  }
+
+  id = mcp.packetId();
+
+  if (mcp.packetRtr())
+  {
+    Serial.print(" requested length ");
+    Serial.println(mcp.packetDlc());
+  }
+  else
+  {
+    for (i = 0; mcp.available(); i++)
+    {
+      if (i >= packetSize)
+        break;
+      data[i] = (uint8_t)mcp.read();
+    }
+
+    // Separate calculation of speed, intervals etc. here, and do the
+    // printing (optionally) later on.
+    switch (id)
+    {
+    case 0x02F83200:   // Battery% / Cadence / Torque / Range (this is different from the other docs)
+        motor.battery_level = data[0];
+        motor.crpm = data[3];
+        motor.crank_interval = (motor.crpm == 0) ? 0 : 60000L / motor.crpm;
+        motor.range = raw_2bytes(data[6], data[7]);
+        break;
+
+    case 0x02F83201:  // Speed/current/voltage/temp
+        rc = true;    // Set true return upon every speed packet
+
+        motor.kmh = raw_2bytes(data[0], data[1]);
+
+        // Compute rpm (as integer)
+        rpm = (10000L * motor.kmh) / (60L * motor.circ);
+
+        // Compute rev interval (used for updating the CP or CSC characteristics)
+        motor.wheel_interval = (rpm == 0) ? 0 : 60000L / rpm;
+
+        motor.amps = raw_2bytes(data[2], data[3]);
+        motor.volts = raw_2bytes(data[4], data[5]);
+
+        // Compute power in watts
+        motor.power = ((long)motor.volts * motor.amps) / 10000L;
+
+        motor.ctrlr_temp = data[6];
+        motor.motor_temp = data[7];
+        break;
+
+    case 0x02F83203:  // Speedlimit/wheelsize/circumference
+        motor.limit = raw_2bytes(data[0], data[1]);
+        motor.circ = raw_2bytes(data[4], data[5]);
+        break;
+
+    // Messages from the display.
+
+    case 0x03106300:  // PAS Level/light setop
+        for (i = 0; i < 6; i++)
+        {
+          if (data[1] == pas_byte[i])   // TODO What if #levels is not 5?
+            break;
+        }
+        motor.pas = i;
+        break;
+
+    case 0x03106301:  // odo/trip/max speed
+        display.odo = raw_2bytes(data[0], data[1]);   // these may be 3-byte quantities;
+        display.trip = raw_2bytes(data[3], data[4]);  // we only retain 2 bytes
+        display.max_speed = raw_2bytes(data[6], data[7]);
+        break;
+
+    case 0x03106302:  // average/copy of odo (not used)
+        display.avg_speed = raw_2bytes(data[0], data[1]);
+        break;
+    }
+
+    // Optionally, determine if the packet has been seen before.
+    i = -1;
+    if (verbosity == 1)
+    {
+        bool found = false;
+        int check_count;
+
+        // Check if packet has been seen before, and if so, whether its data has changed.
+        // Some packet ID's have data changes that are not relevant to us (e.g. voltage)
+        // so we set a check count for them rather than comparing the whole packet.
+        switch (id)
+        {
+          case 0x02F83201:
+            // Speed packet: only check first 4 bytes (ignore voltage and temps)
+            check_count = 4;
+            break;
+          default:
+            check_count = CHECK_SIZE;
+        }
+
+        // In any event limit to packet size for short packets
+        if (packetSize < check_count)
+          check_count = packetSize;
+
+        // Check for packet found in array
+        for (i = 0; i < num_packets; i++)
+        {
+          if (id == packets[i].id)
+          {
+            found = true;
+            break;
+          }
+        }
+
+        if (found)
+        {
+          bool changed = false;
+
+          // Check the data and skip printing if unchanged
+          if (packets[i].length != packetSize)
+          {
+            changed = true;
+          }
+          else
+          {
+            for (int j = 0; j < check_count; j++)
+            {
+              if (packets[i].check[j] != data[j])
+              {
+                changed = true;
+                break;
+              }
+            }
+          }
+
+          // No change, just return. Always set rc on speed packet (see above)
+          if (!changed)
+          {
+            packets[i].repeats++;
+            return rc;
+          }
+        }
+
+        // Store the new/changed data, and bump num_packets if we are adding
+        // a new packet for the first time
+        if (i == num_packets)
+        {
+          // Avoid overflowing the array
+          if (num_packets >= PACKETS)
+          {
+            Serial.println(F("Packet array overflow!!"));
+            return rc;
+          }
+
+          // Store a new packet type
+          packets[i].id = id;
+          packets[i].repeats = 1;
+          num_packets++;
+        }
+        else
+        {
+          packets[i].repeats++;
+        }
+        packets[i].length = packetSize;
+        for (int j = 0; j < check_count; j++)
+          packets[i].check[j] = data[j];
+
+        // Repeat count to be printed later
+        reps = packets[i].repeats;
+    }
+
+    // If we know something about this packet ID, print it. The derived values
+    // have been calculated above.
+    // These are mostly ctrl -> disp
+    switch (id)
+    {
+    case 0x02F83200:   // Battery% / Cadence / Torque / Range (this is different from the other docs)
+        echo(id, i, packetSize, data);
+
+        Serial.print(" Battery ");
+        Serial.print(motor.battery_level, DEC);
+        Serial.print("% ");
+
+        Serial.print("Cadence ");
+        Serial.print(motor.crpm, DEC);
+        Serial.print("rpm ");
+        Serial.print("(");
+        Serial.print(motor.crank_interval);
+        Serial.print("ms) ");
+
+        Serial.print("Range ");
+        format_dec_and_print(motor.range, 2);
+        Serial.print("km");
+        echo_tail(verbosity, reps);
+        break;
+
+    case 0x02F83201:  // Speed/current/voltage/temp
+        echo(id, i, packetSize, data);
+
+        Serial.print(" Speed ");
+        format_dec_and_print(motor.kmh, 2);
+        Serial.print("km/h ");
+
+        Serial.print("(");
+        Serial.print(rpm);
+        Serial.print("rpm ");
+        Serial.print(motor.wheel_interval);
+        Serial.print("ms) ");
+
+        Serial.print("Motor ");
+        format_dec_and_print(motor.amps, 2);
+        Serial.print("amps ");
+        format_dec_and_print(motor.volts, 2);
+        Serial.print("volts ");
+
+        Serial.print("(");
+        Serial.print(motor.power);
+        Serial.print("W) ");
+
+        Serial.print("Temps ctrl ");
+        Serial.print(motor.ctrlr_temp - 40);
+        Serial.print(" motor ");
+        Serial.print(motor.motor_temp - 40);
+        echo_tail(verbosity, reps);
+        break;
+
+    case 0x02F83203:  // Speedlimit/wheelsize/circumference
+        echo(id, i, packetSize, data);
+
+        Serial.print(" Speed limit ");
+        format_dec_and_print(motor.limit, 2);
+        Serial.print("km/h ");
+
+        // Wheel size is special: bottom nibble is a decimal place, not hex
+        // e.g. B5 01 = 01B5 = 1Bhex . 5 = 27.5 inches
+        Serial.print("Wheel size ");
+        format_wheelsize_and_print(data[2], data[3]);
+        Serial.print("in ");
+
+        Serial.print("Circum ");
+        Serial.print(motor.circ);
+        Serial.print("mm");
+        echo_tail(verbosity, reps);
+        break;
+
+    // Messages from the display. These do not appear to be going anywhere (although
+    // their destination is controller) as trip, odo, etc. seem to be managed in
+    // the display, and other displays (e.g. OpenSouceEBike) do not send them
+
+    // The PAS level/light packet is the only one that needs to be sent every 100-150ms,
+    // otherwise the motor will switch off.
+    case 0x03106300:  // PAS Level/light setop
+        echo(id, i, packetSize, data);
+        
+        Serial.print(" #levels ");
+        Serial.print(data[0], DEC);
+        Serial.print(" level byte ");
+        Serial.print(data[1], DEC);
+        Serial.print(" (PAS ");
+        Serial.print(motor.pas, DEC);
+        Serial.print(") light? ");
+        Serial.print(data[2], DEC);
+        Serial.print(" on/off? ");
+        Serial.print(data[3], DEC);
+        echo_tail(verbosity, reps);
+        break;
+
+    case 0x03106301:  // odo/trip/max speed. We only retain and print 2 bytes (they might be 3 byte quantities)
+        echo(id, i, packetSize, data);
+
+        Serial.print(" Odometer ");
+        format_dec_and_print(display.odo, 0);
+        Serial.print("km");
+        Serial.print(" trip ");
+        format_dec_and_print(display.trip, 1);
+        Serial.print("km");
+        Serial.print(" max speed ");
+        format_dec_and_print(display.max_speed, 1);
+        Serial.print("km/h");
+
+        echo_tail(verbosity, reps);
+        break;
+
+    case 0x03106302:  // avg speed/copy of odo (not used)
+        echo(id, i, packetSize, data);
+
+        Serial.print(" Average speed ");
+        format_dec_and_print(display.avg_speed, 1);
+        Serial.print("km/h");
+        echo_tail(verbosity, reps);
+        break;
+
+    default:
+        if (verbosity == 1 || verbosity == 3)   // printing all packets, not just known ID's
+        {
+          echo(id, i, packetSize, data);
+          for (i = 0; i < packetSize; i++)
+          {
+            Serial.print(" ");
+            Serial.print((char)data[i]);        // Print any ASCII characters such as version numbers
+          }
+
+          echo_tail(verbosity, reps);
+        }
+        break;
+    }
+  }
+
+  return rc;
+}
