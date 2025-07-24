@@ -8,7 +8,7 @@ Display display;
 // Data structure to retain packet ID's to suppress printing of unchanged data
 
 // The maximum size of a packet as read from the CAN bus
-#define DATA_SIZE   32
+#define DATA_SIZE   16
 
 // Number of distinct packet ID's to be checked on
 #define PACKETS     48
@@ -34,33 +34,7 @@ uint16_t raw_2bytes(uint8_t b0, uint8_t b1)
    return ((uint16_t)b1 << 8) | b0;
 }
 
-
-// TODO Get rid of the sprintf's. They account for ~1600 bytes of program
-
-
-#ifdef OLD_FORMAT
-// Helper to print a two byte raw as a 0-2 decimal place float.
-// e.g. E8 03 == 03E8 == 1000 = "10.00" to 2 places
-//      C0 08 == 08C0 == 2240 = "2240" to 0 places
-char *format_dec(uint16_t raw, int places, char *buf)
-{
-   switch (places)
-   {
-   case 0:
-      sprintf(buf, "%d", raw);
-      break;
-   case 1:
-      sprintf(buf, "%d.%d", raw / 10, raw % 10);
-      break;
-   case 2:
-      sprintf(buf, "%d.%d", raw / 100, raw % 100);    // TODO there is bug here - 27.03 and 27.30 will print the same! Need leading 0
-      break;
-   }
-   return buf;
-}
-
-#else
-// a version without sprintf's. Format and print.
+// Format without sprintf's. Format and print.
 void format_dec_and_print(uint16_t raw, int places)
 {
   uint16_t frac;
@@ -72,28 +46,25 @@ void format_dec_and_print(uint16_t raw, int places)
       break;
    case 1:
       Serial.print(raw / 10);   // integer part
-      Serial.print(".");
+      Serial.print(F("."));
       Serial.print(raw % 10);   // fractional part is always 1 digit
       break;
    case 2:
       Serial.print(raw / 100);
-      Serial.print(".");
+      Serial.print(F("."));
       frac = raw % 100;
       if (frac < 10)
-        Serial.print("0");      // insert the leading zero if frac is 1 digit
+        Serial.print(F("0"));      // insert the leading zero if frac is 1 digit
       Serial.print(frac);
       break;
    }
 }
 
-#endif
-
 // Helper to print a wheel size. THe lower nibble is a decimal fraction (not hex)
 // e.g. B5 01 = 01B5 = 1Bhex . 5 = 27.5
 // Always print to 1 decimal place
-void format_wheelsize_and_print(uint8_t b0, uint8_t b1)
+void format_wheelsize_and_print(uint16_t raw)
 {
-   int raw = raw_2bytes(b0, b1);
    int whole = raw >> 4;
    int frac = raw & 0xF;
    format_dec_and_print(whole * 10 + frac, 1);
@@ -107,28 +78,28 @@ void echo(uint32_t id, int indx, int packetSize, uint8_t data[])
   char buf[16];
 
   Serial.print(millis());
-  Serial.print(": ");
+  Serial.print(F(": "));
   Serial.print(id, HEX);
   if (indx >= 0)      // print index in the packet ID array
   {
-    Serial.print("[");
+    Serial.print(F("["));
     Serial.print(indx);
-    Serial.print("]");
+    Serial.print(F("]"));
   }
-  Serial.print(" ");
+  Serial.print(F(" "));
   Serial.print(packetSize);
 
   for (i = 0; i < packetSize; i++)
   {
-    Serial.print(" ");
+    Serial.print(F(" "));
     if (data[i] < 16)
-      Serial.print("0");
+      Serial.print(F("0"));
     Serial.print(data[i], HEX);
   }
 
   // pad out to 8 bytes formatted width
   for ( ; i < 8; i++)
-      Serial.print("   ");
+      Serial.print(F("   "));
 }
 
 // Echo the tail end of the packet, printing the repeat count if we are
@@ -137,9 +108,9 @@ void echo_tail(int verbosity, uint16_t repeats)
 {
   if (verbosity == 1)
   {
-    Serial.print(" [");
+    Serial.print(F(" ["));
     Serial.print(repeats);
-    Serial.print("]");
+    Serial.print(F("]"));
   }
   Serial.println();
 }
@@ -148,19 +119,22 @@ void echo_tail(int verbosity, uint16_t repeats)
 // globals, and (optionally) print it to serial.
 //
 // mcp        MCP2515 instance
-
-// connected  if true, we are connected to a BLE central  
-
-// verbosity  0 = don't print any packets
-//            1 = print all packets with changed data (suppress repeats)
-//            2 = print known packets with known ID
-//            3 = print all packets.
 //
-// Returns:   1 if a speed packet was received so we can
-//            update the BLE characteristics, else 0
+// connected      if true, we are connected to a BLE central  
+//
+// verbosity      0 = don't print any packets
+//                1 = print all packets with changed data (suppress repeats)
+//                2 = print known packets
+//                3 = print all packets.
+//
+// only_this_id   0 = print all packets according to verbosity
+//                !=0 print only packets with this ID
+//
+// Returns:       1 if a speed packet was received so we can
+//                update the BLE characteristics, else 0
 //
 
-int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity)
+int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity, uint32_t only_this_id)
 {
   char buf[16];
   uint32_t id;
@@ -183,14 +157,14 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity)
   // received a packet
   if (mcp.packetRtr()) {
     // Remote transmission request, packet contains no data
-    Serial.print("RTR ");
+    Serial.print(F("RTR "));
   }
 
   id = mcp.packetId();
 
   if (mcp.packetRtr())
   {
-    Serial.print(" requested length ");
+    Serial.print(F(" req length "));
     Serial.println(mcp.packetDlc());
   }
   else
@@ -236,6 +210,7 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity)
 
     case 0x02F83203:  // Speedlimit/wheelsize/circumference
         motor.limit = raw_2bytes(data[0], data[1]);
+        motor.wheel_size = raw_2bytes(data[2], data[3]);
         motor.circ = raw_2bytes(data[4], data[5]);
         break;
 
@@ -260,6 +235,14 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity)
         display.avg_speed = raw_2bytes(data[0], data[1]);
         break;
     }
+
+    // If not logging anything, stop here.
+    if (verbosity == 0)
+      return rc;
+
+    // Restrict logging to one specified packet.
+    if (only_this_id != 0 && id != only_this_id)
+      return rc;
 
     // Optionally, determine if the packet has been seen before.
     i = -1;
@@ -360,49 +343,49 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity)
     case 0x02F83200:   // Battery% / Cadence / Torque / Range (this is different from the other docs)
         echo(id, i, packetSize, data);
 
-        Serial.print(" Battery ");
+        Serial.print(F(" Battery "));
         Serial.print(motor.battery_level, DEC);
-        Serial.print("% ");
+        Serial.print(F("% "));
 
-        Serial.print("Cadence ");
+        Serial.print(F("Cadence "));
         Serial.print(motor.crpm, DEC);
-        Serial.print("rpm ");
-        Serial.print("(");
+        Serial.print(F("rpm "));
+        Serial.print(F("("));
         Serial.print(motor.crank_interval);
-        Serial.print("ms) ");
+        Serial.print(F("ms) "));
 
-        Serial.print("Range ");
+        Serial.print(F("Range "));
         format_dec_and_print(motor.range, 2);
-        Serial.print("km");
+        Serial.print(F("km"));
         echo_tail(verbosity, reps);
         break;
 
     case 0x02F83201:  // Speed/current/voltage/temp
         echo(id, i, packetSize, data);
 
-        Serial.print(" Speed ");
+        Serial.print(F(" Speed "));
         format_dec_and_print(motor.kmh, 2);
-        Serial.print("km/h ");
+        Serial.print(F("km/h "));
 
-        Serial.print("(");
+        Serial.print(F("("));
         Serial.print(rpm);
-        Serial.print("rpm ");
+        Serial.print(F("rpm "));
         Serial.print(motor.wheel_interval);
-        Serial.print("ms) ");
+        Serial.print(F("ms) "));
 
-        Serial.print("Motor ");
+        Serial.print(F("Motor "));
         format_dec_and_print(motor.amps, 2);
-        Serial.print("amps ");
+        Serial.print(F("amps "));
         format_dec_and_print(motor.volts, 2);
-        Serial.print("volts ");
+        Serial.print(F("volts "));
 
-        Serial.print("(");
+        Serial.print(F("("));
         Serial.print(motor.power);
-        Serial.print("W) ");
+        Serial.print(F("W) "));
 
-        Serial.print("Temps ctrl ");
+        Serial.print(F("Temps ctrl "));
         Serial.print(motor.ctrlr_temp - 40);
-        Serial.print(" motor ");
+        Serial.print(F(" motor "));
         Serial.print(motor.motor_temp - 40);
         echo_tail(verbosity, reps);
         break;
@@ -410,19 +393,19 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity)
     case 0x02F83203:  // Speedlimit/wheelsize/circumference
         echo(id, i, packetSize, data);
 
-        Serial.print(" Speed limit ");
+        Serial.print(F(" Speed limit "));
         format_dec_and_print(motor.limit, 2);
-        Serial.print("km/h ");
+        Serial.print(F("km/h "));
 
         // Wheel size is special: bottom nibble is a decimal place, not hex
         // e.g. B5 01 = 01B5 = 1Bhex . 5 = 27.5 inches
-        Serial.print("Wheel size ");
-        format_wheelsize_and_print(data[2], data[3]);
-        Serial.print("in ");
+        Serial.print(F("Wheel size "));
+        format_wheelsize_and_print(motor.wheel_size);
+        Serial.print(F("in "));
 
-        Serial.print("Circum ");
+        Serial.print(F("Circum "));
         Serial.print(motor.circ);
-        Serial.print("mm");
+        Serial.print(F("mm"));
         echo_tail(verbosity, reps);
         break;
 
@@ -435,15 +418,15 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity)
     case 0x03106300:  // PAS Level/light setop
         echo(id, i, packetSize, data);
         
-        Serial.print(" #levels ");
+        Serial.print(F(" #levels "));
         Serial.print(data[0], DEC);
-        Serial.print(" level byte ");
+        Serial.print(F(" level byte "));
         Serial.print(data[1], DEC);
-        Serial.print(" (PAS ");
+        Serial.print(F(" (PAS "));
         Serial.print(motor.pas, DEC);
-        Serial.print(") light? ");
+        Serial.print(F(") light? "));
         Serial.print(data[2], DEC);
-        Serial.print(" on/off? ");
+        Serial.print(F(" on/off? "));
         Serial.print(data[3], DEC);
         echo_tail(verbosity, reps);
         break;
@@ -451,15 +434,15 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity)
     case 0x03106301:  // odo/trip/max speed. We only retain and print 2 bytes (they might be 3 byte quantities)
         echo(id, i, packetSize, data);
 
-        Serial.print(" Odometer ");
+        Serial.print(F(" Odometer "));
         format_dec_and_print(display.odo, 0);
-        Serial.print("km");
-        Serial.print(" trip ");
+        Serial.print(F("km"));
+        Serial.print(F(" trip "));
         format_dec_and_print(display.trip, 1);
-        Serial.print("km");
-        Serial.print(" max speed ");
+        Serial.print(F("km"));
+        Serial.print(F(" max speed "));
         format_dec_and_print(display.max_speed, 1);
-        Serial.print("km/h");
+        Serial.print(F("km/h"));
 
         echo_tail(verbosity, reps);
         break;
@@ -467,9 +450,9 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity)
     case 0x03106302:  // avg speed/copy of odo (not used)
         echo(id, i, packetSize, data);
 
-        Serial.print(" Average speed ");
+        Serial.print(F(" Average speed "));
         format_dec_and_print(display.avg_speed, 1);
-        Serial.print("km/h");
+        Serial.print(F("km/h"));
         echo_tail(verbosity, reps);
         break;
 
@@ -479,7 +462,7 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity)
           echo(id, i, packetSize, data);
           for (i = 0; i < packetSize; i++)
           {
-            Serial.print(" ");
+            Serial.print(F(" "));
             Serial.print((char)data[i]);        // Print any ASCII characters such as version numbers
           }
 
@@ -490,4 +473,73 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity)
   }
 
   return rc;
+}
+
+// Send a speed limit/wheel size/circumference packet with a
+// changed speed limit. Speed should be 25, 35 or 45. The other
+// fields are copied from the speed limit packet(s) read in
+// so far.
+void send_speed_limit(Adafruit_MCP2515 mcp, int speed)
+{
+  uint8_t data[8];
+  int i;
+Serial.println(speed);
+  if (speed < 25)     // some sanity checks
+    speed = 25;
+  else if (speed > 45)
+    speed = 45;
+
+  speed *= 100;
+
+  data[0] = speed & 0xFF;
+  data[1] = (speed >> 8) & 0xFF;
+  data[2] = motor.wheel_size & 0xFF; 
+  data[3] = (motor.wheel_size >> 8) & 0xFF;
+  data[4] = motor.circ & 0xFF;
+  data[5] = (motor.circ >> 8) & 0xFF;
+
+  // DEBUG: Write out the packet to serial in hex.
+  for (i = 0; i < 6; i++)
+  {
+    if (data[i] < 0x10)
+      Serial.print(F("0"));
+    Serial.print(data[i], HEX);
+    Serial.print(F(" "));
+  }
+  Serial.println();
+
+  mcp.beginExtendedPacket(0x05103203);
+  for (i = 0; i < 6; i++)
+    mcp.write(data[i]);
+  mcp.endPacket();
+}
+
+// Send a speed limit/wheel size/circumference packet with a
+// changed circumference in mm.
+void send_circumference(Adafruit_MCP2515 mcp, int circum)
+{
+  uint8_t data[8];
+  int i;
+
+  data[0] = motor.limit & 0xFF;
+  data[1] = (motor.limit >> 8) & 0xFF;
+  data[2] = motor.wheel_size & 0xFF;  // TODO read this in and store it
+  data[3] = (motor.wheel_size >> 8) & 0xFF;
+  data[4] = circum & 0xFF;
+  data[5] = (circum >> 8) & 0xFF;
+
+  // DEBUG: Write out the packet to serial in hex.
+  for (i = 0; i < 6; i++)
+  {
+    if (data[i] < 0x10)
+      Serial.print(F("0"));
+    Serial.print(data[i], HEX);
+    Serial.print(F(" "));
+  }
+  Serial.println();
+
+  mcp.beginExtendedPacket(0x05103203);
+  for (i = 0; i < 6; i++)
+    mcp.write(data[i]);
+  mcp.endPacket();
 }

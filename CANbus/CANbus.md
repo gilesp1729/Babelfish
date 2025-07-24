@@ -88,8 +88,6 @@ ID: 02F83203
 Speed Limit Byte   1/0 : C4 09 -> 0x09C4              = 2500   => 25.00km/h
 Wheel Size Byte    3/2 : D0 01 -> 0x01D0 -> 0x01D . 0 = 29 . 0 => 29.0"
 Circumference Byte 5/4 : E8 08 -> 0x08E8              = 2280   => 2280mm
-
-
 ```
 
 ##### State Information
@@ -141,7 +139,6 @@ Resetting the trip zeroes out the average speed field. I'm not sure why the odom
 Decoding example: 03106302
 ID: 03106302
 Numbers Byte: 5
-
 ```
 
 ## CAN messages during operations
@@ -153,16 +150,17 @@ Numbers Byte: 5
 03106301, 02, 03 approximately every 100ms too
 ```
 
-
-
 ##### Controller (Only with the presence of the HMI or BESST)
 
 ```
 02F83200 every 1500ms
 02F83201 every 280ms
 02F83202 every 100ms
-02F83203 every 450ms
+02F83203 every 450ms (*)
 02FF1200 every 490ms
+
+(*) This has been seen in the past at 450-500ms, however I'm only
+seeing it erratically, every 10-20 seconds.
 ```
 
 ## Known working CANBUS commands

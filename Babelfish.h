@@ -13,6 +13,7 @@ typedef struct MotorController
   uint16_t volts;           // battery volts*100
   uint16_t amps;            // motor current in amps*100
   uint16_t limit;           // speed limit in km/h*100
+  uint16_t wheel_size;      // wheel size in 12.4 (decimal fraction part in low nibble)
   uint16_t circ;            // wheel circumference in mm
   int battery_level;        // in %
   uint8_t pas;              // PAS level (0-5)
@@ -26,7 +27,7 @@ typedef struct MotorController
 };
 
 // these fields are managed by the display. They are sent to the motor
-// but do not appear to be needed.
+// on the CAN bus, but do not appear to be needed by the motor.
 typedef struct Display
 {
   uint16_t odo;             // odometer in km/h
@@ -37,28 +38,22 @@ typedef struct Display
 
 // Scanning bus and logging packets.
 
-// mcp        The MCP2515 instance.
-// connected  Whether connected to a BLE central
-// verbosity  0 = don't print any packets
-//            1 = print all packets with changed data (suppress repeats)
-//            2 = print known packets
-//            3 = print all packets.
-int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity);
+// mcp            The MCP2515 instance.
+// connected      Whether connected to a BLE central
+// verbosity      0 = don't print any packets
+//                1 = print all packets with changed data (suppress repeats)
+//                2 = print known packets
+//                3 = print all packets.
+// only_this_id   0 = print all packets according to verbosity
+//                !=0 print only packets with this ID
+int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity, uint32_t only_this_id);
 
 // Print serial and model numbers of controller
 void print_serial_model_nos(void);
 
 // Set speed limit
-void set_speed_limit(int lim);
-
-// Set wheel size
-void set_wheel_size(float wheelsize);
+void send_speed_limit(Adafruit_MCP2515 mcp, int speed);
 
 // Set wheel circumference
-void set_wheel_circ(int circum);
-
-// Set PAS level (0-5)
-void set_PAS_level(int pas);
-
-
+void send_circumference(Adafruit_MCP2515 mcp, int circum);
 

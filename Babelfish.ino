@@ -27,11 +27,14 @@ Adafruit_BluefruitLE_SPI ble(BLUEFRUIT_SPI_CS, BLUEFRUIT_SPI_IRQ, BLUEFRUIT_SPI_
 Adafruit_BLEGatt gatt(ble);
 
 // Logging packets on CAN bus.
-// verbosity  0 = don't print any packets
-//            1 = print all packets with changed data (suppress repeats)
-//            2 = print known packets
-//            3 = print all packets.
+// verbosity      0 = don't print any packets
+//                1 = print all packets with changed data (suppress repeats)
+//                2 = print known packets
+//                3 = print all packets.
+// only_this_id   0 = print all packets according to verbosity
+//                !=0 print only packets with this ID
 int verbosity = 3;
+uint32_t only_this_id = 0;
 
 int sensor_pos = 11;      // sensor position magic number.
 // No idea what they mean (shitty specs) but it's mandatory to supply one.
@@ -148,13 +151,13 @@ void update_chars()
   fillMS();
 
   // Some debug output to indicate what triggered the update
-  Serial.print("Wheel Rev.: ");
+  Serial.print(F("Wheel Rev.: "));
   Serial.print(wheelRev);
-  Serial.print(" WheelTime : ");
+  Serial.print(F(" WheelTime : "));
   Serial.print(lastWheeltime);
-  Serial.print(" Crank Rev.: ");
+  Serial.print(F(" Crank Rev.: "));
   Serial.print(crankRev);
-  Serial.print(" CrankTime : ");
+  Serial.print(F(" CrankTime : "));
   Serial.println(lastCranktime);
 }
 
@@ -299,7 +302,7 @@ void loop()
       p = buf;
       Serial.println(buf);
 
-      switch (*p)
+      switch (*p++)
       {
         case 'v':
         case 'V':
@@ -316,22 +319,22 @@ void loop()
           // Set/display circumference (mm).
           if (len <= 1)
           {
-            Serial.print("Wheel circ = ");
+            Serial.print(F("Wheel circ = "));
             Serial.println(motor.circ);
           }
           else
           {
             while (isspace(*p))
               p++;
-            motor.circ = atoi(p);
-            // TODO Write the speed limit/circ packet to the motor here
+            // Write the speed limit/circ packet to the motor here.
+            send_circumference(mcp, atoi(p));
           }
           break;
 
 #if 0  // probably won't do this.
         case 'w':
         case 'W':
-          // Set/display wheel size (inches).
+          // Set/display wheel size (inches). Input is floating point.
 
           break;
 #endif
@@ -339,7 +342,18 @@ void loop()
         case 'l':
         case 'L':
           // Set/display motor speed limit. 
-          // TODO similar to the circ case above
+          if (len <= 1)
+          {
+            Serial.print(F("Speed limit = "));
+            Serial.println(motor.limit / 100);
+          }
+          else
+          {
+            while (isspace(*p))
+              p++;
+            // Write the speed limit/circ packet to the motor here.
+            send_speed_limit(mcp, atoi(p));
+          }
           break;
       }
     }
@@ -361,7 +375,7 @@ void loop()
       updateWheelCrank();
 
       // Scan CAN bus and update characteristics.
-      if (scanbus(mcp, connected, verbosity))
+      if (scanbus(mcp, connected, verbosity, only_this_id))
       {
         // Power, speed, cadence (CP service) and battery level service.
         // Update the characteristics.
@@ -389,6 +403,6 @@ void loop()
   else  // not connected, scan the CAN bus so we can print (optionally)
         // and possibly receive commands from the serial monitor input
   {
-    scanbus(mcp, connected, verbosity);
+    scanbus(mcp, connected, verbosity, only_this_id);
   }
 }
