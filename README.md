@@ -22,4 +22,4 @@ Babelfish V1 runs on an Adafruit Bluefruit LE 32u4 with its companion CAN bus tr
 
 Libraries used are Adafruit_BluefruitLE_nRF51 and Adafruit_MCP2515. Follow Adafruit's directions to load their additional boards manager URL.
 
-The Babelfish Android app is/will be developed using B4A.
+The Babelfish Android app is being developed using B4A.

@@ -69,7 +69,6 @@ unsigned short flags = 0x30;
 unsigned long time_now;
 unsigned long time_prev_wheel = 0;
 unsigned long time_prev_crank = 0;
-unsigned long wheel_interval, crank_interval;
 
 // Counters for updating power and speed services
 unsigned long wheelRev = 0;
@@ -78,9 +77,6 @@ unsigned long lastWheeltime = 0;   // last time measurement taken
 unsigned int crankRev = 0;
 unsigned long lastCranktime = 0;
 
-// Motor controller readings, derived values, and display values
-extern MotorController motor;
-extern Display display;
 
 // Fill the CP measurement array and send it
 void fillCP()
@@ -124,12 +120,12 @@ void fillMS()
   gatt.setChar(motorMeasurement, bleBuffer, n);
 
   n = 0;
-  bleBuffer[n++] = motor.limit & 0xff;
-  bleBuffer[n++] = (motor.limit >> 8) & 0xff;
-  bleBuffer[n++] = motor.circ & 0xff;
-  bleBuffer[n++] = (motor.circ >> 8) & 0xff;
-  bleBuffer[n++] = 0;         // for later setting of wheel size
-  bleBuffer[n++] = 0;
+  bleBuffer[n++] = settings.limit & 0xff;
+  bleBuffer[n++] = (settings.limit >> 8) & 0xff;
+  bleBuffer[n++] = settings.circ & 0xff;
+  bleBuffer[n++] = (settings.circ >> 8) & 0xff;
+  bleBuffer[n++] = settings.wheel_size & 0xff;
+  bleBuffer[n++] = (settings.wheel_size >> 8) & 0xff;
   gatt.setChar(motorSettings, bleBuffer, n);
 
   n = 0;
@@ -142,13 +138,14 @@ void fillMS()
   gatt.setChar(motorResettableTrip, bleBuffer, n);
 }
 
-
 // Update old values and send CP and MS to BLE client
 void update_chars()
 {
   // Update old values 
   fillCP();
   fillMS();
+  slBuffer[0] = motor.battery_level & 0xff;
+  gatt.setChar(batteryLevelChar, slBuffer, 1);
 
   // Some debug output to indicate what triggered the update
   Serial.print(F("Wheel Rev.: "));
@@ -167,18 +164,18 @@ void updateWheelCrank()
 {
   time_now = millis();
 
-  if (wheel_interval != 0 && time_now >= time_prev_wheel + wheel_interval)
+  if (motor.wheel_interval != 0 && time_now >= time_prev_wheel + motor.wheel_interval)
   {
     // Update the wheel counter and remember the time of last update
     wheelRev = wheelRev + 1;
-    lastWheeltime = (time_prev_wheel + wheel_interval) << 1;  // in half-ms
+    lastWheeltime = (time_prev_wheel + motor.wheel_interval) << 1;  // in half-ms
     time_prev_wheel = time_now;
   }
 
-  if (crank_interval != 0 && time_now >= time_prev_crank + crank_interval) 
+  if (motor.crank_interval != 0 && time_now >= time_prev_crank + motor.crank_interval) 
   {
     crankRev = crankRev + 1;
-    lastCranktime = time_prev_crank + crank_interval;
+    lastCranktime = time_prev_crank + motor.crank_interval;
     time_prev_crank = time_now;
   }
 }
@@ -235,9 +232,9 @@ void setup()
   if (! ble.sendCommandCheckOK(F("AT+GAPDEVNAME=Babelfish")) ) 
     error(F("Could not set device name?"));
 
-  // Initialise some value to sensible defaults
+  // Initialise some values to sensible defaults
   motor.battery_level = 100;
-  motor.circ = 2300;
+  settings.circ = 2312;   // 29" wheel
 
   // Don't advertise the battery service; it will be found when the app connects,
   // if the app is looking for it
@@ -248,10 +245,10 @@ void setup()
   motorService = gatt.addService(0xFFF0);
   motorMeasurement =
     gatt.addCharacteristic(0xFFF1, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 14, 14, BLE_DATATYPE_BYTEARRAY);
-  motorSettings =
+  motorSettings =  // TODO maybe this doesn't need to be writable?
     gatt.addCharacteristic(0xFFF2, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_WRITE | GATT_CHARS_PROPERTIES_NOTIFY, 6, 6, BLE_DATATYPE_BYTEARRAY);
   motorResettableTrip =
-    gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_WRITE | GATT_CHARS_PROPERTIES_NOTIFY, 6, 6, BLE_DATATYPE_BYTEARRAY);
+    gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 6, 6, BLE_DATATYPE_BYTEARRAY);
 
   // Initial values for wheel and crank timers
   unsigned long t = millis();
@@ -320,7 +317,7 @@ void loop()
           if (len <= 1)
           {
             Serial.print(F("Wheel circ = "));
-            Serial.println(motor.circ);
+            Serial.println(settings.circ);
           }
           else
           {
@@ -345,7 +342,7 @@ void loop()
           if (len <= 1)
           {
             Serial.print(F("Speed limit = "));
-            Serial.println(motor.limit / 100);
+            Serial.println(settings.limit / 100);
           }
           else
           {
@@ -362,6 +359,8 @@ void loop()
   // if a central is connected to peripheral:
   if (ble.isConnected())
   {
+    bool pkts_seen = false;
+
     Serial.println(F("Connected to central"));
     // turn on the LED to indicate the connection:
     digitalWrite(LED_BUILTIN, HIGH);
@@ -375,21 +374,18 @@ void loop()
       updateWheelCrank();
 
       // Scan CAN bus and update characteristics.
-      if (scanbus(mcp, connected, verbosity, only_this_id))
+      int rc = scanbus(mcp, connected, verbosity, only_this_id);
+      if (rc)
+        pkts_seen = true;
+#ifdef TEST_MODE      
+      if (!pkts_seen)
+        rc = testmode_poll();
+#endif
+      if (rc)
       {
-        // Power, speed, cadence (CP service) and battery level service.
-        // Update the characteristics.
+        // Update all characteristics.
         // Speed packets will come roughly every 280ms
         update_chars();
-        slBuffer[0] = motor.battery_level & 0xff;
-        gatt.setChar(batteryLevelChar, slBuffer, 1);
-
-        // Volts, amps, motor temps, PAS level (custom motor service)
-        // Speed limit, wheelsize, circumference (custom motor service)
-        // TODO 
-
-
-
       }
     }
 

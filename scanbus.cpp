@@ -4,6 +4,7 @@
 // Definitions of motor+controller, and display.
 MotorController motor;
 Display display;
+Settings settings;
 
 // Data structure to retain packet ID's to suppress printing of unchanged data
 
@@ -193,7 +194,7 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity, uint32_t only_t
         motor.kmh = raw_2bytes(data[0], data[1]);
 
         // Compute rpm (as integer)
-        rpm = (10000L * motor.kmh) / (60L * motor.circ);
+        rpm = (10000L * motor.kmh) / (60L * settings.circ);
 
         // Compute rev interval (used for updating the CP or CSC characteristics)
         motor.wheel_interval = (rpm == 0) ? 0 : 60000L / rpm;
@@ -209,9 +210,9 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity, uint32_t only_t
         break;
 
     case 0x02F83203:  // Speedlimit/wheelsize/circumference
-        motor.limit = raw_2bytes(data[0], data[1]);
-        motor.wheel_size = raw_2bytes(data[2], data[3]);
-        motor.circ = raw_2bytes(data[4], data[5]);
+        settings.limit = raw_2bytes(data[0], data[1]);
+        settings.wheel_size = raw_2bytes(data[2], data[3]);
+        settings.circ = raw_2bytes(data[4], data[5]);
         break;
 
     // Messages from the display.
@@ -394,17 +395,17 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity, uint32_t only_t
         echo(id, i, packetSize, data);
 
         Serial.print(F(" Speed limit "));
-        format_dec_and_print(motor.limit, 2);
+        format_dec_and_print(settings.limit, 2);
         Serial.print(F("km/h "));
 
         // Wheel size is special: bottom nibble is a decimal place, not hex
         // e.g. B5 01 = 01B5 = 1Bhex . 5 = 27.5 inches
         Serial.print(F("Wheel size "));
-        format_wheelsize_and_print(motor.wheel_size);
+        format_wheelsize_and_print(settings.wheel_size);
         Serial.print(F("in "));
 
         Serial.print(F("Circum "));
-        Serial.print(motor.circ);
+        Serial.print(settings.circ);
         Serial.print(F("mm"));
         echo_tail(verbosity, reps);
         break;
@@ -493,10 +494,10 @@ Serial.println(speed);
 
   data[0] = speed & 0xFF;
   data[1] = (speed >> 8) & 0xFF;
-  data[2] = motor.wheel_size & 0xFF; 
-  data[3] = (motor.wheel_size >> 8) & 0xFF;
-  data[4] = motor.circ & 0xFF;
-  data[5] = (motor.circ >> 8) & 0xFF;
+  data[2] = settings.wheel_size & 0xFF; 
+  data[3] = (settings.wheel_size >> 8) & 0xFF;
+  data[4] = settings.circ & 0xFF;
+  data[5] = (settings.circ >> 8) & 0xFF;
 
   // DEBUG: Write out the packet to serial in hex.
   for (i = 0; i < 6; i++)
@@ -521,10 +522,10 @@ void send_circumference(Adafruit_MCP2515 mcp, int circum)
   uint8_t data[8];
   int i;
 
-  data[0] = motor.limit & 0xFF;
-  data[1] = (motor.limit >> 8) & 0xFF;
-  data[2] = motor.wheel_size & 0xFF;  // TODO read this in and store it
-  data[3] = (motor.wheel_size >> 8) & 0xFF;
+  data[0] = settings.limit & 0xFF;
+  data[1] = (settings.limit >> 8) & 0xFF;
+  data[2] = settings.wheel_size & 0xFF;
+  data[3] = (settings.wheel_size >> 8) & 0xFF;
   data[4] = circum & 0xFF;
   data[5] = (circum >> 8) & 0xFF;
 

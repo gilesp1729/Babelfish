@@ -12,13 +12,10 @@ typedef struct MotorController
   uint16_t range;           // range in km*100
   uint16_t volts;           // battery volts*100
   uint16_t amps;            // motor current in amps*100
-  uint16_t limit;           // speed limit in km/h*100
-  uint16_t wheel_size;      // wheel size in 12.4 (decimal fraction part in low nibble)
-  uint16_t circ;            // wheel circumference in mm
   int battery_level;        // in %
   uint8_t pas;              // PAS level (0-5)
   uint8_t motor_temp;       // Motor temp in degC + 40
-  uint8_t ctrlr_temp;       // Controller temp is degC + 40
+  uint8_t ctrlr_temp;       // Controller temp in degC + 40
 
   // Derived values for the CP service
   uint32_t wheel_interval;  // in half-ms
@@ -35,6 +32,20 @@ typedef struct Display
   uint16_t max_speed;       // maximum speed in km/h*10
   uint16_t trip;            // trip distamce in km*10
 };
+
+// These fields are writable settings for the motor.
+typedef struct Settings
+{
+  uint16_t limit;           // speed limit in km/h*100
+  uint16_t wheel_size;      // wheel size in 12.4 (decimal fraction part in low nibble)
+  uint16_t circ;            // wheel circumference in mm
+};
+
+// Motor controller readings, derived values, display values, and settings
+extern MotorController motor;
+extern Display display;
+extern Settings settings;
+
 
 // Scanning bus and logging packets.
 
@@ -56,4 +67,17 @@ void send_speed_limit(Adafruit_MCP2515 mcp, int speed);
 
 // Set wheel circumference
 void send_circumference(Adafruit_MCP2515 mcp, int circum);
+
+// Test mode for BLE characteristics. If no packets are received,
+// Babelfish (optionally) generates synthetic speed/cadence/power/etc. data.
+// Define TESTMODE here to enable it.
+
+#define TEST_MODE
+
+// Update all values every 1 second
+#define TESTMODE_INTERVAL  1000
+
+// Check for timing on test mode data changes, and return true if anything
+// has changed.
+int testmode_poll(void);
 
