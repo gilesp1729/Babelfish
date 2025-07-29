@@ -190,6 +190,8 @@ void error(const __FlashStringHelper *str)
 void setup()
 {
   int count = 0;
+  char buf[20];
+  char devname[32];
 
   Serial.begin(9600);  // initialize serial communication
   while (!Serial)
@@ -227,9 +229,17 @@ void setup()
   batteryLevelChar =
     gatt.addCharacteristic(0x2A19, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 1, 1, BLE_DATATYPE_BYTEARRAY);
 
-  // Advertise cycling power service
-  Serial.println(F("Setting device name to 'Babelfish': "));
-  if (! ble.sendCommandCheckOK(F("AT+GAPDEVNAME=Babelfish")) ) 
+  // Build a device name with the last 2 bytes of the MAC address, to make it unique.
+  if (!ble.atcommandStrReply(F("AT+BLEGETADDR"), buf, 20, 500))
+    error(F("Could not get MAC address"));
+  Serial.print(" ");
+  Serial.println(buf);
+  strcpy(devname, "AT+GAPDEVNAME=Babelfish");
+  strcat(devname, buf + 12);
+
+  Serial.println(F("Setting device name"));
+  //if (! ble.sendCommandCheckOK(F("AT+GAPDEVNAME=Babelfish")) ) 
+  if (! ble.sendCommandCheckOK(devname) ) 
     error(F("Could not set device name?"));
 
   // Initialise some values to sensible defaults

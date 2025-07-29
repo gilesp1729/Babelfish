@@ -1,0 +1,9 @@
+#Directories:
+!**/Objects/res
+**/Objects
+**/AutoBackups
+#Files:
+*.ipa
+*.dex
+*.jar
+*.apk

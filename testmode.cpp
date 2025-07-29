@@ -34,6 +34,10 @@ int testmode_poll(void)
     display.max_speed = 30 * 10;
     display.trip = 20 * 10;
 
+    settings.limit = 25 * 100;
+    settings.wheel_size = 29 << 4;
+    settings.circ = 2312;
+
     // recompute the derived values
     motor.power = ((long)motor.volts * motor.amps) / 10000L;
     motor.crank_interval = (motor.crpm == 0) ? 0 : 60000L / motor.crpm;
