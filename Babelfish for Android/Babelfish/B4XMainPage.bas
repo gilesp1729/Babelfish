@@ -20,17 +20,23 @@ Sub Class_Globals
 	Private ConnectedName As String
 	Private ConnectedId As String
 	Private btnScanAndConnect As B4XView
+	Private clv As CustomListView	
 	Private Connected As Boolean
-	Private DeviceFound As Boolean
+	Private Timer1 As Timer			' TODO Also do this for connecting to device
+	Private ToastMessage As BCToast
+#if 0
+	Private bc As ByteConverter
+#end if
 	
-	#if B4A
-	Private manager As BleManager2
+	Private bgndColor As Int
+	Private borderColor As Int
+	Private textColor As Int
+	
+#if B4A
 	Private rp As RuntimePermissions
-	#else if B4i
-	Private manager As BleManager
-	#end if
-	Private ConnectedServices As List
-	'Private pbScan As B4XLoadingIndicator
+#end if
+	
+	Private pbWait As B4XLoadingIndicator
 
 End Sub
 
@@ -45,33 +51,71 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	Root = Root1
 	Root.LoadLayout("MainPage")
 	B4XPages.SetTitle(Me, "Babelfish")
-	manager.Initialize("manager")
+	Starter.manager.Initialize("manager")
+	Timer1.Initialize("Timer1", 10000)	' timeout for scans
+	ToastMessage.Initialize(Root)
 	
 	Page1.Initialize	'initializes Page1
 	B4XPages.AddPage("Page 1", Page1)	'adds Page1 to the B4XPages list
 
+	bgndColor = Starter.bgndColor
+	borderColor = Starter.borderColor
+	textColor = Starter.textColor
+
 	btnScanAndConnect.Text = "Scan for devices"
+	btnScanAndConnect.SetColorAndBorder(bgndColor, 2dip, borderColor, 0)
+	Dim b As Button = btnScanAndConnect
+	b.TextColor = textColor
+	pbWait.Hide
 	Connected = False
-	DeviceFound = False
 End Sub
 
 'You can see the list of page related events in the B4XPagesManager object. The event name is B4XPage.
 'Display Page1
 
+Private Sub B4XPage_Appear
+	If Connected Then
+		' when coming back from Page1, disconnect any connected peripheral
+		Starter.manager.Disconnect
+		Manager_Disconnected
+	End If
+End Sub
+
 
 Sub Manager_DeviceFound (Name As String, Id As String, AdvertisingData As Map, RSSI As Double)
 	Log("Found: " & Name & ", " & Id & ", RSSI = " & RSSI & ", " & AdvertisingData) 'ignore
 	
-	' Look for Babelfish instances. TODO: Put these in a list. And scan for that 0xFFF0 service!
+#if 0
+	' Look for Babelfish instances. TODO: Put these in a list. And scan for CSC/CP servies
 	If Not(Name.StartsWith("Babelfish")) Then
 		Return
 	End If
+#end if
+
+#if 0	
+	'' What's in the advertising data?
+	' Key 1, value 0x06
+	' Key 2, value 0x18 18 0A 18 (18 18 is the CP service short UUID)
+	' Key 9, value 'Babelfish67:5D' (the device name)
+	For Each k As Int In AdvertisingData.Keys
+		If k <> 0 Then
+			Dim b() As Byte = AdvertisingData.Get(k)
+			Log("Key: " & k & ", Value ASCII: " & BytesToString(b, 0, b.Length, "utf8") & ", Value hex: " &  bc.HexFromBytes(b)  )
+		End If
+	Next
+#end if
 		
-	ConnectedName = Name
-	ConnectedId = Id
-	DeviceFound = True
-	btnScanAndConnect.Text = ConnectedName
-	manager.StopScan
+	' Add item to list view
+	clv.AddTextItem(Name, Id)
+
+	' Some black magic to dig out the underlying Panel and TextView
+	' from the list view item. Set the colours.
+	Dim p = clv.GetRawListItem(clv.Size - 1).Panel.GetView(0) As B4XView
+	Dim t As B4XView = p.GetView(0)
+	p.SetColorAndBorder(bgndColor, 2dip, borderColor, 0)
+	t.TextColor = textColor
+	pbWait.Hide
+	Timer1.Enabled = False
 End Sub
 
 Sub Manager_Disconnected
@@ -82,7 +126,8 @@ End Sub
 Sub Manager_Connected (services As List)
 	Log("Connected")
 	Connected = True
-	ConnectedServices = services
+	pbWait.Hide
+	Starter.ConnectedServices = services
 	' Throw to Page 1
 	B4XPages.ShowPage("Page 1")
 	'Can only set title after page is shown.
@@ -92,44 +137,52 @@ End Sub
 
 Private Sub btnScanAndConnect_Click
 	
-	' if not connected - scan for devices bearing service 0xFFF0
-	' connect to the device and change button text (that stays there
-	' during this run of the app,until Rescan buttton pressed)
-	If Not(DeviceFound) Then
-	#if B4A
-		'Don't forget to add permission to manifest
-		Dim Permissions As List
-		Dim phone As Phone
-		If phone.SdkVersion >= 31 Then
-			Permissions = Array("android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_CONNECT", rp.PERMISSION_ACCESS_FINE_LOCATION)
-		Else
-			Permissions = Array(rp.PERMISSION_ACCESS_FINE_LOCATION)
-		End If
-		For Each per As String In Permissions
-			rp.CheckAndRequest(per)
-			Wait For B4XPage_PermissionResult (Permission As String, Result As Boolean)
-			If Result = False Then
-				ToastMessageShow("No permission: " & Permission, True)
-				Return
-			End If
-		Next
-	#end if
-		manager.Scan2(Null, False)
-		'manager.Scan2(0xFFF0, False)	' TODO: is this the right way to specifiy service?
-		Return
+#if B4A
+	'Don't forget to add permission to manifest
+	Dim Permissions As List
+	Dim phone As Phone
+	If phone.SdkVersion >= 31 Then
+		Permissions = Array("android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_CONNECT", rp.PERMISSION_ACCESS_FINE_LOCATION)
+	Else
+		Permissions = Array(rp.PERMISSION_ACCESS_FINE_LOCATION)
 	End If
+	For Each per As String In Permissions
+		rp.CheckAndRequest(per)
+		Wait For B4XPage_PermissionResult (Permission As String, Result As Boolean)
+		If Result = False Then
+			ToastMessageShow("No permission: " & Permission, True)
+			Return
+		End If
+	Next
+#end if
+	clv.Clear
+	pbWait.Show
+	Timer1.Enabled = True
+	Starter.manager.Scan2(Null, False)
+	'manager.Scan2(0xFFF0, False)	' TODO: is this the right way to specifiy service? CP and CSC?
+	Return
 	
-	' if connected - connect to the device and throw us to Page1
-	Log("connecting")
-	#if B4A
-	manager.Connect2(ConnectedId, False) 'disabling auto connect can make the connection quicker
-	#else if B4I
-	manager.Connect(Id)
-	#end if
 End Sub
 
-Private Sub btnRescan_Click
-	btnScanAndConnect.Text = "Scan for devices"
-	DeviceFound = False
+Sub Timer1_Tick
+	ToastMessage.Show("No devices found")
+	Timer1.Enabled = False
+	pbWait.Hide
+	Starter.manager.StopScan
 End Sub
+
+' Device clicked on - connect to the device and throw us to Page1
+Private Sub clv_ItemClick (Index As Int, Value As Object)
+	Log("connecting to")
+	Log(Value)
+	ConnectedId = Value.As(String)
+	ConnectedName = clv.GetPanel(Index).GetView(0).Text
+	pbWait.Show
+#if B4A
+	Starter.manager.Connect2(ConnectedId, False) 'disabling auto connect can make the connection quicker
+#else if B4I
+	manager.Connect(ConnectedId)
+#end if
+End Sub
+
 

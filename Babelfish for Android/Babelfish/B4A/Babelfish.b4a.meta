@@ -1,12 +1,15 @@
 ﻿ModuleBookmarks0=
 ModuleBookmarks1=
 ModuleBookmarks2=
+ModuleBookmarks3=
 ModuleBreakpoints0=
 ModuleBreakpoints1=
 ModuleBreakpoints2=
+ModuleBreakpoints3=
 ModuleClosedNodes0=
 ModuleClosedNodes1=
 ModuleClosedNodes2=
-NavigationStack=Visual Designer,MainPage.bal,-100,6,B4XMainPage,Manager_Disconnected,66,0,B4XPage1,Class_Globals,0,0,B4XMainPage,Manager_Connected,73,4,B4XMainPage,B4XPage_Created,48,6,B4XMainPage,btnRescan_Click,124,5,B4XPage1,B4XPage_Disappear,27,6,B4XMainPage,btnScanAndConnect_Click,107,6,B4XMainPage,Class_Globals,26,6,B4XMainPage,Manager_DeviceFound,58,6
+ModuleClosedNodes3=
+NavigationStack=Visual Designer,Page1.bal,-100,6,B4XPage1,Class_Globals,12,0,B4XPage1,Initialize,14,0,B4XPage1,B4XPage_Created,29,0,B4XMainPage,Initialize,36,0,B4XMainPage,Manager_DeviceFound,109,6,B4XMainPage,btnScanAndConnect_Click,157,3,B4XMainPage,B4XPage_Created,48,3,B4XMainPage,Class_Globals,19,6,B4XMainPage,Timer1_Tick,163,6
 SelectedBuild=0
-VisibleModules=1,2
+VisibleModules=1,2,3

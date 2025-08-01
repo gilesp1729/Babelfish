@@ -2,7 +2,7 @@
 Group=Default Group
 ModulesStructureVersion=1
 Type=Service
-Version=9.8
+Version=13.1
 @EndOfDesignText@
 #Region  Service Attributes 
 	#StartAtBoot: False
@@ -12,7 +12,17 @@ Version=9.8
 Sub Process_Globals
 	'These global variables will be declared once when the application starts.
 	'These variables can be accessed from all modules.
-
+	#if B4A
+	Public manager As BleManager2
+	#else if B4i
+	Public manager As BleManager
+	#end if
+	Public ConnectedServices As List
+	
+	' Colors
+	Public bgndColor = 0xFFFFFFFF As Int
+	Public borderColor  = 0xFF808080 As Int
+	Public textColor = 0xFF000000 As Int
 End Sub
 
 Sub Service_Create
