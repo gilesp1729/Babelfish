@@ -20,7 +20,7 @@ Sub Process_Globals
 	Public ConnectedServices As List
 	
 	' Colors
-	Public bgndColor = 0xFFFFFFFF As Int
+	Public bgndColor = 0xFFFFFFBF As Int
 	Public borderColor  = 0xFF808080 As Int
 	Public textColor = 0xFF000000 As Int
 End Sub

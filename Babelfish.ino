@@ -129,6 +129,8 @@ void fillMS()
   gatt.setChar(motorSettings, bleBuffer, n);
 
   n = 0;
+  bleBuffer[n++] = display.odo & 0xff;
+  bleBuffer[n++] = (display.odo >> 8) & 0xff;
   bleBuffer[n++] = display.trip & 0xff;
   bleBuffer[n++] = (display.trip >> 8) & 0xff;
   bleBuffer[n++] = display.avg_speed & 0xff;
@@ -258,7 +260,7 @@ void setup()
   motorSettings =  // TODO maybe this doesn't need to be writable?
     gatt.addCharacteristic(0xFFF2, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_WRITE | GATT_CHARS_PROPERTIES_NOTIFY, 6, 6, BLE_DATATYPE_BYTEARRAY);
   motorResettableTrip =
-    gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 6, 6, BLE_DATATYPE_BYTEARRAY);
+    gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 8, 8, BLE_DATATYPE_BYTEARRAY);
 
   // Initial values for wheel and crank timers
   unsigned long t = millis();

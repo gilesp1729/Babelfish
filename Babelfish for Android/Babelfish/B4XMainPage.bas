@@ -19,10 +19,12 @@ Sub Class_Globals
 	
 	Private ConnectedName As String
 	Private ConnectedId As String
+	Private ConnectedIndex As Int
 	Private btnScanAndConnect As B4XView
 	Private clv As CustomListView	
 	Private Connected As Boolean
-	Private Timer1 As Timer			' TODO Also do this for connecting to device
+	Private ScanTimer As Timer
+	Private ConnectTimer As Timer
 	Private ToastMessage As BCToast
 #if 0
 	Private bc As ByteConverter
@@ -52,7 +54,8 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	Root.LoadLayout("MainPage")
 	B4XPages.SetTitle(Me, "Babelfish")
 	Starter.manager.Initialize("manager")
-	Timer1.Initialize("Timer1", 10000)	' timeout for scans
+	ScanTimer.Initialize("ScanTimer", 10000)	' timeout for scans
+	ConnectTimer.Initialize("ConnectTimer", 10000)	' timeout for connection
 	ToastMessage.Initialize(Root)
 	
 	Page1.Initialize	'initializes Page1
@@ -81,6 +84,40 @@ Private Sub B4XPage_Appear
 	End If
 End Sub
 
+Private Sub B4XPage_Disappear
+	' Disable these timers if they are running, just to tidy up
+	ScanTimer.Enabled = False
+	ConnectTimer.Enabled = False
+End Sub
+
+' Scan for devices and populate the list view.
+Private Sub btnScanAndConnect_Click
+	
+#if B4A
+	'Don't forget to add permission to manifest
+	Dim Permissions As List
+	Dim phone As Phone
+	If phone.SdkVersion >= 31 Then
+		Permissions = Array("android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_CONNECT", rp.PERMISSION_ACCESS_FINE_LOCATION)
+	Else
+		Permissions = Array(rp.PERMISSION_ACCESS_FINE_LOCATION)
+	End If
+	For Each per As String In Permissions
+		rp.CheckAndRequest(per)
+		Wait For B4XPage_PermissionResult (Permission As String, Result As Boolean)
+		If Result = False Then
+			ToastMessageShow("No permission: " & Permission, True)
+			Return
+		End If
+	Next
+#end if
+	clv.Clear
+	pbWait.Show
+	ScanTimer.Enabled = True
+	Starter.manager.Scan2(Null, False)
+	Return
+	
+End Sub
 
 Sub Manager_DeviceFound (Name As String, Id As String, AdvertisingData As Map, RSSI As Double)
 	Log("Found: " & Name & ", " & Id & ", RSSI = " & RSSI & ", " & AdvertisingData) 'ignore
@@ -104,6 +141,10 @@ Sub Manager_DeviceFound (Name As String, Id As String, AdvertisingData As Map, R
 		End If
 	Next
 #end if
+	' Blank names get skipped
+	If Name.Length == 0 Then
+		Return
+	End If
 		
 	' Add item to list view
 	clv.AddTextItem(Name, Id)
@@ -115,7 +156,15 @@ Sub Manager_DeviceFound (Name As String, Id As String, AdvertisingData As Map, R
 	p.SetColorAndBorder(bgndColor, 2dip, borderColor, 0)
 	t.TextColor = textColor
 	pbWait.Hide
-	Timer1.Enabled = False
+	ScanTimer.Enabled = False
+End Sub
+
+' Timer routine fires when no devices are found within a reasonable time
+Sub ScanTimer_Tick
+	ToastMessage.Show("No devices found")
+	ScanTimer.Enabled = False
+	pbWait.Hide
+	Starter.manager.StopScan
 End Sub
 
 Sub Manager_Disconnected
@@ -123,61 +172,15 @@ Sub Manager_Disconnected
 	Connected = False
 End Sub
 
-Sub Manager_Connected (services As List)
-	Log("Connected")
-	Connected = True
-	pbWait.Hide
-	Starter.ConnectedServices = services
-	' Throw to Page 1
-	B4XPages.ShowPage("Page 1")
-	'Can only set title after page is shown.
-	B4XPages.SetTitle(Page1, ConnectedName)
-End Sub
-
-
-Private Sub btnScanAndConnect_Click
-	
-#if B4A
-	'Don't forget to add permission to manifest
-	Dim Permissions As List
-	Dim phone As Phone
-	If phone.SdkVersion >= 31 Then
-		Permissions = Array("android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_CONNECT", rp.PERMISSION_ACCESS_FINE_LOCATION)
-	Else
-		Permissions = Array(rp.PERMISSION_ACCESS_FINE_LOCATION)
-	End If
-	For Each per As String In Permissions
-		rp.CheckAndRequest(per)
-		Wait For B4XPage_PermissionResult (Permission As String, Result As Boolean)
-		If Result = False Then
-			ToastMessageShow("No permission: " & Permission, True)
-			Return
-		End If
-	Next
-#end if
-	clv.Clear
-	pbWait.Show
-	Timer1.Enabled = True
-	Starter.manager.Scan2(Null, False)
-	'manager.Scan2(0xFFF0, False)	' TODO: is this the right way to specifiy service? CP and CSC?
-	Return
-	
-End Sub
-
-Sub Timer1_Tick
-	ToastMessage.Show("No devices found")
-	Timer1.Enabled = False
-	pbWait.Hide
-	Starter.manager.StopScan
-End Sub
-
 ' Device clicked on - connect to the device and throw us to Page1
 Private Sub clv_ItemClick (Index As Int, Value As Object)
 	Log("connecting to")
 	Log(Value)
+	ConnectedIndex = Index
 	ConnectedId = Value.As(String)
 	ConnectedName = clv.GetPanel(Index).GetView(0).Text
 	pbWait.Show
+	ConnectTimer.Enabled = True
 #if B4A
 	Starter.manager.Connect2(ConnectedId, False) 'disabling auto connect can make the connection quicker
 #else if B4I
@@ -185,4 +188,33 @@ Private Sub clv_ItemClick (Index As Int, Value As Object)
 #end if
 End Sub
 
+Sub Manager_Connected (services As List)
+	Log("Connected")
+	Connected = True
+	pbWait.Hide
+	ConnectTimer.Enabled = False
+	Starter.ConnectedServices = services
+	' Throw to Page 1
+	B4XPages.ShowPage("Page 1")
+	'Can only set title after page is shown.
+	B4XPages.SetTitle(Page1, ConnectedName)
+End Sub
+
+' Timer routine fires when the device could not connect within a reasonable time
+' (e.g. it has gone away between discovery and user click)
+Sub ConnectTimer_Tick
+	ToastMessage.Show("Cannot connect to device")
+	ConnectTimer.Enabled = False
+	pbWait.Hide
+	' TODO Should this device be removed from the list?
+	clv.RemoveAt(ConnectedIndex)
+End Sub
+
+
+' This is triggered by entering Page 1, but it has to be defined here. It that because
+' the manager is initialised here? The mysteries of pages and scopes...
+
+Sub Manager_DataAvailable(ServiceId As String, Characteristics As Map)
+	Page1.AvailCallback(ServiceId, Characteristics)
+End Sub
 
