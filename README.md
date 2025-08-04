@@ -4,15 +4,15 @@
 
 Bafang’s Bluetooth phone app, **Bafang Go+**, allows real-time speed, map, power, etc. to be displayed, and also for certain motor settings to be changed. However, its BLE protocol is proprietary, and it requires **privileges** on the phone that are unreasonable, as well as requiring logging on to anonymous servers somewhere and “phoning home” with who knows what personal data.
 
-**Babelfish** translates between CAN bus packets and standard BLE characteristics for cycle power, speed and cadence. These can be read with many cycling apps, such as **SuperCycle**, which requires no login, personal data or off-device storage.
+**Babelfish** sits on the CAN bus and translates between CAN packets and standard BLE characteristics for cycle power, speed and cadence. These can be read with many cycling apps, such as **SuperCycle**, which requires no login, personal data or off-device storage. 
 
-Babelfish also exposes custom characteristics for the companion phone app, to display assist level, trip and odometer, battery current and temperatures, and to allow viewing and changing motor settings, such as speed limit and wheel size.
+Babelfish also exposes custom characteristics for the companion phone app **Babelfish for Android**, to display assist level, trip and odometer, battery current and temperatures. The app also works backward-compatibly with other sources exposing the standard cycle power (CP) or speed and cadence (CSC) services.
 
 While plugged into USB, Babelfish has different levels of logging CAN bus packets. 
 
 ## Versions
 
-Version 1 is current. It sits on the CAN bus between motor controller and display and simply eavesdrops on the CAN bus. The Babelfish phone app is upcoming.
+Version 1 is current. It sits on the CAN bus between motor controller and display and simply eavesdrops on the CAN bus. The Babelfish phone app is being developed concurrently.
 
 Version 2 is upcoming. It acts as a replacement display, simplifying wiring and allowing more control. Supported hardware, display type and phone app support is TBD (the current 32u4 is very tight on memory...)
 

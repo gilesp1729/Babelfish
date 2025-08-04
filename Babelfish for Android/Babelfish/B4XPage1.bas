@@ -12,6 +12,7 @@ Sub Class_Globals
 	Private borderColor As Int
 	Private textColor As Int
 
+	Private pnlBackground As B4XView
 	Private pnlSpeed As Panel
 	Private pnlCadence As Panel
 	Private pnlPower As Panel
@@ -50,6 +51,8 @@ End Sub
 
 Private Sub B4XPage_Appear
 	' Draw panels for quantities to be displayed
+	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
+	
 	' The ReadData will trigger a DataAvailable event, but only if it's caught in the MainPage..	
 	For Each s As String In Starter.ConnectedServices
 		' TODO distiguish between BF+CP, CP or CSC, and set up lists of services
@@ -205,5 +208,6 @@ End Sub
 ' representing, say, a PAS level.
 Sub DrawStringPanelValue(pan As B4XView, str As String)
 	Dim V As B4XView = pan.GetView(3)   ' the string carrying the icon
+	V.TextColor = textColor		' it hasn't been set by DrawNumberPanel
 	V.Text = str	
 End Sub
