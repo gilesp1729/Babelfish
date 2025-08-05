@@ -10,6 +10,6 @@ ModuleClosedNodes0=
 ModuleClosedNodes1=
 ModuleClosedNodes2=
 ModuleClosedNodes3=
-NavigationStack=B4XPage1,UpdateTimer_Tick,67,5,B4XPage1,B4XPage_Disappear,65,3,Visual Designer,MainPage.bal,-100,1,B4XPage1,Unsigned2,83,0,B4XPage1,B4XPage_Appear,64,6,B4XPage1,AvailCallback,158,6,Starter,Process_Globals,18,0,Visual Designer,Page1.bal,-100,6,B4XPage1,Class_Globals,18,0,B4XPage1,DrawNumberPanel,183,0,B4XPage1,DrawStringPanelValue,204,6
+NavigationStack=B4XPage1,DrawStringPanelValue,204,6,B4XPage1,Initialize,29,0,B4XPage1,B4XPage_Disappear,106,3,B4XPage1,Class_Globals,26,6,B4XPage1,UpdateTimer_Tick,141,0,B4XPage1,Unsigned2,150,0,B4XPage1,Unsigned4,154,6,Visual Designer,Page1.bal,-100,1,B4XPage1,B4XPage_Appear,74,6,B4XPage1,AvailCallback,191,6
 SelectedBuild=0
 VisibleModules=1,2,3
