@@ -26,9 +26,7 @@ Sub Class_Globals
 	Private ScanTimer As Timer
 	Private ConnectTimer As Timer
 	Private ToastMessage As BCToast
-#if 0
 	Private bc As ByteConverter
-#end if
 	
 	Private bgndColor As Int
 	Private borderColor As Int
@@ -71,6 +69,9 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	b.TextColor = textColor
 	pbWait.Hide
 	Connected = False
+	
+	' Start scanning right now, don't wait for the button
+	btnScanAndConnect_Click
 End Sub
 
 'You can see the list of page related events in the B4XPagesManager object. The event name is B4XPage.
@@ -122,14 +123,6 @@ End Sub
 Sub Manager_DeviceFound (Name As String, Id As String, AdvertisingData As Map, RSSI As Double)
 	Log("Found: " & Name & ", " & Id & ", RSSI = " & RSSI & ", " & AdvertisingData) 'ignore
 	
-#if 0
-	' Look for Babelfish instances. TODO: Put these in a list. And scan for CSC/CP servies
-	If Not(Name.StartsWith("Babelfish")) Then
-		Return
-	End If
-#end if
-
-#if 0	
 	'' What's in the advertising data?
 	' Key 1, value 0x06
 	' Key 2, value 0x18 18 0A 18 (18 18 is the CP service short UUID)
@@ -137,11 +130,18 @@ Sub Manager_DeviceFound (Name As String, Id As String, AdvertisingData As Map, R
 	For Each k As Int In AdvertisingData.Keys
 		If k <> 0 Then
 			Dim b() As Byte = AdvertisingData.Get(k)
-			Log("Key: " & k & ", Value ASCII: " & BytesToString(b, 0, b.Length, "utf8") & ", Value hex: " &  bc.HexFromBytes(b)  )
+			' Log("Key: " & k & ", Value ASCII: " & BytesToString(b, 0, b.Length, "utf8") & ", Value hex: " &  bc.HexFromBytes(b)  )
+		End If
+		If k == 2 Then
+			' Check first two bytes of advertising data for the advertised service ID.
+			' If it's not advertising CSC or CP then we don't offer it.
+			Dim AdvertisedService As Int = Page1.Unsigned2(b(0), b(1))
+			If AdvertisedService <> 0x1816 And AdvertisedService <> 0x1818 Then
+				Return
+			End If
 		End If
 	Next
-#end if
-	' Blank names get skipped
+	' Blank names get skipped too. (not sure where these come from)
 	If Name.Length == 0 Then
 		Return
 	End If

@@ -25,13 +25,24 @@ Sub Class_Globals
 	Private pnlMax As Panel
 	Private pnlAvg As Panel
 	
-	Private bc As ByteConverter
+	' Private bc As ByteConverter
+	
+	' For CSC and CP
 	Private UpdateTimer As Timer
 	Private ConnectedDeviceType As Int
 	Private lastWheelRev As Int
 	Private lastWheelTime As Int
 	Private lastCrankRev As Int
 	Private lastCrankTime As Int
+	
+	' For the speed dial display
+	Private Const Pi As Float = 3.14159
+	Private Const gap As Float = 20dip
+	Private Const stp As Float = 0.05
+	Private MaxSpdx10 As Int = 0
+	Private AvgSpdx10 As Int = 0
+	Private cvsSpeed As B4XCanvas
+
 End Sub
 
 'You can add more parameters here.
@@ -51,11 +62,14 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	bgndColor = Starter.bgndColor
 	borderColor = Starter.borderColor
 	textColor = Starter.textColor
+	
+	cvsSpeed.Initialize(pnlSpeed)
 
 End Sub
 
 Private Sub B4XPage_Appear
 	' Draw panels for quantities to be displayed
+	' Set the background to black
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
 	
 	' Go through the list of services and find out what we are connected to.
@@ -93,15 +107,15 @@ Private Sub B4XPage_Appear
 		' Some characteristics in the service change infrequently, so we read them
 		' all on a timer rather than notifying
 		UpdateTimer.Enabled = True
-		' Draw the panels on the display			
-		' Speed dial (TODO - numbers for now)
-		DrawNumberPanel(pnlSpeed, "Speed", "km/h", False)
-
-		' These sit on top of the speed dial, so transparent background
+		' Draw the panels on the display
+		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
+		DrawSpeedDial(pnlSpeed, cvsSpeed)
+				
+		' These sit on top of the speed dial panel, so transparent background
 		DrawNumberPanel(pnlBattery, "", "", True)
 		DrawNumberPanel(pnlPAS, "PAS", "", True)
 		DrawNumberPanel(pnlRange, "Range", "km", True)
-		DrawNumberPanel(pnlCadence, "Cad", "rpm", True)
+		DrawNumberPanel(pnlCadence, "", "rpm", True)	' Don't show "cad" as it gets in the way of the speed dial
 
 		' The rest are lower down on  the page
 		DrawNumberPanel(pnlTrip, "Trip", "km", False)
@@ -115,7 +129,9 @@ Private Sub B4XPage_Appear
 	Else if ConnectedDeviceType == 2 Then
 		UpdateTimer.Enabled = True
 		' Set up for CP service
-		DrawNumberPanel(pnlSpeed, "Speed", "km/h", False)
+		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
+		DrawSpeedDial(pnlSpeed, cvsSpeed)
+
 		DrawNumberPanel(pnlBattery, "", "", True)
 		DrawNumberPanel(pnlCadence, "Cad", "rpm", True)
 		DrawNumberPanel(pnlRange, "Power", "", True)		' Use Range field for power to keep it neat.
@@ -132,7 +148,9 @@ Private Sub B4XPage_Appear
 		' Set up for CSC service. Note that cadence may not be present.
 		' This depends on some bits in a characteristic that comes with it,
 		' but we just put up the panel anyway.
-		DrawNumberPanel(pnlSpeed, "Speed", "km/h", False)
+		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
+		DrawSpeedDial(pnlSpeed, cvsSpeed)
+
 		DrawNumberPanel(pnlBattery, "", "", True)
 		DrawNumberPanel(pnlCadence, "Cad", "rpm", True)
 		DrawNumberPanelBlank(pnlTrip)
@@ -183,25 +201,33 @@ End Sub
 Sub AvailCallback(ServiceId As String, Characteristics As Map)
 	Dim b(20) As Byte
 	Dim battIcon As String
-	
-	Log("Service " & ServiceId)
+	Dim PASLevels() As String
+	PASLevels = Array As String ("Off", "Eco", "Tour", "Sport", "Sp+", "Boost")
+	' Log("Service " & ServiceId)
 	For Each id As String In Characteristics.Keys
-		Log("Char ID " & id)
+		' Log("Char ID " & id)
 		b = Characteristics.Get(id)
-		Log(bc.HexFromBytes(b))
+		' Log(bc.HexFromBytes(b))
 		
 		If ConnectedDeviceType == 3 Then
 			' Babelfish Motor service
 			If id.ToLowerCase.StartsWith("0000fff1") Then
 				' Motor measurement
-				DrawNumberPanelValue(pnlSpeed, Unsigned2(b(0), b(1)), 100, 1, "")
+				Dim Speedx100 As Int = Unsigned2(b(0), b(1))
+				DrawNumberPanelValue(pnlSpeed, Speedx100, 100, 1, "")
+				DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx100 / 10)
+				' Draw things that have to appear on top of the speed stripe
+				DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
+				DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
+				
 				DrawNumberPanelValue(pnlCadence, Unsigned(b(2)), 1, 0, "")
-				DrawNumberPanelValue(pnlPAS, Unsigned(b(11)), 1, 0, "")		' TODO make this a string
 				DrawNumberPanelValue(pnlRange, Unsigned2(b(9), b(10)), 100, 0, "")
 
 				DrawNumberPanelValue(pnlPower, Unsigned2(b(3), b(4)), 1, 0, "W")
 				DrawNumberPanelValue(pnlVolts, Unsigned2(b(5), b(6)), 100, 1, "V")
 				DrawNumberPanelValue(pnlAmps, Unsigned2(b(7), b(8)), 100, 1, "A")
+				
+				DrawStringPanelValue(pnlPAS, PASLevels(Unsigned(b(11))))
 				
 			else If id.ToLowerCase.StartsWith("0000fff2") Then
 				' Motor settings
@@ -211,8 +237,11 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 			else If id.ToLowerCase.StartsWith("0000fff3") Then
 				' Motor resettable trip
 				DrawNumberPanelValue(pnlTrip, Unsigned2(b(2), b(3)), 10, 1, "")
-				DrawNumberPanelValue(pnlMax, Unsigned2(b(6), b(7)), 10, 0, "")
-				DrawNumberPanelValue(pnlAvg, Unsigned2(b(4), b(5)), 10, 1, "")
+				' Store these for the next speed dial update. They don't change frequently
+				MaxSpdx10 = Unsigned2(b(6), b(7))
+				DrawNumberPanelValue(pnlMax, MaxSpdx10, 10, 0, "")
+				AvgSpdx10 = Unsigned2(b(4), b(5))
+				DrawNumberPanelValue(pnlAvg, AvgSpdx10, 10, 1, "")
 					
 			End If
 		
@@ -236,6 +265,7 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 					' The division yields mm/ms (=m/s). Convert it to km/h*10
 					Dim Speedx10 As Int = ((wheelRev - lastWheelRev) * circ * 36) / (wheelTime - lastWheelTime)
 					DrawNumberPanelValue(pnlSpeed, Speedx10, 10, 1, "")
+					DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx10)
 					lastWheelRev = wheelRev
 					lastWheelTime = wheelTime
 				End If
@@ -269,6 +299,7 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 					' The division yields mm/ms (=m/s). Convert it to km/h*10
 					Dim Speedx10 As Int = ((wheelRev - lastWheelRev) * circ * 36) / (wheelTime - lastWheelTime)
 					DrawNumberPanelValue(pnlSpeed, Speedx10, 10, 1, "")
+					DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx10)
 					lastWheelRev = wheelRev
 					lastWheelTime = wheelTime
 				End If
@@ -305,7 +336,7 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 			Else
 				battIcon = ""
 			End If
-			DrawStringPanelValue(pnlBattery, battIcon)
+			DrawStringPanelIcon(pnlBattery, battIcon)
 					
 		End If
 	Next
@@ -318,6 +349,7 @@ End Sub
 ' 2 = Value
 ' As drawn, the value is set to "--". 
 ' If transparent, background is transparent and border width is zero.
+' DO NOT use with graphics like the speed dial (the SetColorAndBorder will clobber them)
 Sub DrawNumberPanel(pan As B4XView, Name As String, Unit As String, transparent As Boolean)
 	Dim N As B4XView = pan.GetView(0)
 	Dim U As B4XView = pan.GetView(1)
@@ -346,15 +378,131 @@ Sub DrawNumberPanelValue(pan As B4XView, Value As Int, Div As Int, Decpl As Int,
 	' TODO Optional dec pl for small numbers (like speed)
 End Sub
 
-' Draw a string in the panel value. This can be an Awesome icon or a string
-' representing, say, a PAS level.
-Sub DrawStringPanelValue(pan As B4XView, str As String)
+' Draw a string in the extra field. This can be an Awesome icon.
+Sub DrawStringPanelIcon(pan As B4XView, str As String)
 	Dim V As B4XView = pan.GetView(3)   ' the string carrying the icon
+	V.TextColor = textColor		' it hasn't been set by DrawNumberPanel
+	V.Text = str
+End Sub
+
+' Draw a string in the panel's value field.
+Sub DrawStringPanelValue(pan As B4XView, str As String)
+	Dim V As B4XView = pan.GetView(2)   ' the string carrying the icon
 	V.TextColor = textColor		' it hasn't been set by DrawNumberPanel
 	V.Text = str	
 End Sub
 
 ' Fill a number panel with a blank background.
-Sub DrawNumberPanelBlank(pan as B4XView)
+Sub DrawNumberPanelBlank(pan As B4XView)
 	pan.SetColorAndBorder(Bit.And(bgndColor, 0x00FFFFFF), 0, borderColor, 0)
+End Sub
+
+' Draw a speed dial for the speed panel. Separate routines to clear
+' the background of the panel and set the speed stripe and other
+' bits and pieces.
+
+Sub ClearSpeedDial(pan As Panel, cvs As B4XCanvas, Name As String, Unit As String)
+	
+	Dim rect As B4XRect
+	
+	rect.Initialize(0, 0, pan.Width, pan.Height)
+	cvs.ClearRect(rect)
+	
+	Dim N As B4XView = pan.GetView(0)
+	Dim U As B4XView = pan.GetView(1)
+	Dim V As B4XView = pan.GetView(2)
+	N.TextColor = textColor
+	U.TextColor = textColor
+	V.TextColor = textColor
+	N.Text = Name
+	U.Text = Unit
+	V.Text = "--"
+
+End Sub
+
+' Generate a path for the speed dial outline (to be stroked for the
+' framework, or filled for the speed stripe).
+' The angles are in the mathematical sense (anticlockwise from east)
+Sub SpeedDialPath(pan As Panel, startAngle As Float, finishAngle As Float) As B4XPath
+	Dim cx As Float = pan.Width / 2
+	Dim cy As Float = pan.Height / 2
+	Dim rad As Float = pan.Height / 2 - gap
+	Dim irad As Float = rad - gap
+	Dim Angle As Float
+	Dim path As B4XPath
+
+	path.Initialize(cx + rad * Cos(startAngle), cy - rad * Sin(startAngle))
+	For Angle = startAngle To finishAngle Step stp
+		If Angle > finishAngle - stp Then
+			Angle = finishAngle
+		End If
+		path.LineTo(cx + rad * Cos(Angle), cy - rad * Sin(Angle))
+	Next
+	For Angle = finishAngle To startAngle Step -stp
+		If Angle < startAngle + stp Then
+			Angle = startAngle
+		End If
+		path.LineTo(cx + irad * Cos(Angle), cy - irad * Sin(Angle))
+	Next
+	path.LineTo(cx + rad * Cos(startAngle), cy - rad * Sin(startAngle))
+	Return path
+
+End Sub
+
+' Draw the fixed framework for the speed dial.
+Sub DrawSpeedDial(pan As Panel, cvs As B4XCanvas)
+	Dim path As B4XPath = SpeedDialPath(pan, -Pi / 4, 5 * Pi / 4)
+	cvs.DrawPath(path, textColor, False, 2dip)
+	
+	' Draw the ticks every 5km/h
+	Dim cx As Float = pan.Width / 2
+	Dim cy As Float = pan.Height / 2
+	Dim rad As Float = pan.Height / 2 - gap
+	Dim orad As Float = rad + gap / 2
+	Dim Spd As Int
+	For Spd = 0 To 60 Step 5
+		Dim Angle As Float= SpeedDialAngle(Spd * 10)
+		Dim co As Float = Cos(Angle)
+		Dim si As Float = Sin(Angle)
+		cvs.DrawLine(cx + rad * co, cy - rad * si, cx + orad * co, cy - orad * si, textColor, 2dip)
+	Next
+	cvs.Invalidate
+	
+End Sub
+
+' Calibration for speed stripe display.
+' Calibration is a total angle range -3Pi/2 for 60km/h (hardcoded for now)
+' Zero is 5pi/4. Negative because higher speeds are at smaller angles.
+Sub SpeedDialAngle(Speedx10 As Int) As Float
+	Dim Angle As Float = (5 * Pi / 4) - (Speedx10 / 600) * (3 * Pi / 2)
+	Return Angle
+End Sub
+
+' Draw the speed stripe on the speed dial. 
+Sub DrawSpeedStripe(pan As Panel, cvs As B4XCanvas, Speedx10 As Int)
+	If Speedx10 == 0 Then
+		Return
+	Else If Speedx10 > 600 Then	' Dial tops out at 60km/h
+		Speedx10 = 600
+	End If
+	Dim angleStart As Float = SpeedDialAngle(Speedx10)
+	Dim path As B4XPath = SpeedDialPath(pan, angleStart, 5 * Pi / 4)
+	cvs.DrawPath(path, Colors.Green, True, 0)
+	'cvs.DrawPath(path, Colors.Green, False, 2dip)		' stroking for debugging
+	cvs.Invalidate
+	
+End Sub
+
+' Draw a speed marker in the given colour, for average/max speeds.
+Sub DrawSpeedMark(pan As Panel, cvs As B4XCanvas, Speedx10 As Int, Color As Int)
+	Dim hw As Int = 5 ' half width
+	If Speedx10 <= hw Or Speedx10 >= 600 - hw Then
+		Return
+	End If
+	Dim angleStart As Float = SpeedDialAngle(Speedx10 + hw)
+	Dim angleFinish As Float = SpeedDialAngle(Speedx10 - hw)
+	Dim path As B4XPath = SpeedDialPath(pan, angleStart, angleFinish)
+	cvs.DrawPath(path, Color, True, 0)
+	cvs.Invalidate
+	
 End Sub

@@ -5,19 +5,20 @@ FileGroup1=Default Group
 FileGroup2=Default Group
 Group=Default Group
 Library1=b4xpages
-Library2=bctoast
-Library3=ble2
+Library2=ble2
+Library3=byteconverter
 Library4=core
 Library5=phone
 Library6=runtimepermissions
-Library7=xui views
-Library8=byteconverter
+Library7=xui
+Library8=xui views
+Library9=bctoast
 ManifestCode='This code will be applied to the manifest file during compilation.~\n~'You do not need to modify it in most cases.~\n~'See this link for for more information: https://www.b4x.com/forum/showthread.php?p=78136~\n~AddManifestText(~\n~<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34"/>~\n~<supports-screens android:largeScreens="true" ~\n~    android:normalScreens="true" ~\n~    android:smallScreens="true" ~\n~    android:anyDensity="true"/>)~\n~SetApplicationAttribute(android:icon, "@drawable/icon")~\n~SetApplicationAttribute(android:label, "$LABEL$")~\n~CreateResourceFromFile(Macro, Themes.LightTheme)~\n~'End of default text.~\n~AddPermission(android.permission.ACCESS_FINE_LOCATION)~\n~AddPermission(android.permission.BLUETOOTH_SCAN)~\n~AddPermission(android.permission.BLUETOOTH_CONNECT)~\n~AddPermission(android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE)~\n~SetServiceAttribute(Main, android:foregroundServiceType, "connectedDevice")~\n~
 Module1=|relative|..\B4XMainPage
 Module2=|relative|..\B4XPage1
 Module3=Starter
 NumberOfFiles=2
-NumberOfLibraries=8
+NumberOfLibraries=9
 NumberOfModules=3
 Version=13.1
 @EndOfDesignText@
