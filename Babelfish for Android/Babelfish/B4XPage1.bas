@@ -12,6 +12,7 @@ Sub Class_Globals
 	Private borderColor As Int
 	Private textColor As Int
 
+	' Panels on the display
 	Private pnlBackground As B4XView
 	Private pnlSpeed As Panel
 	Private pnlCadence As Panel
@@ -24,6 +25,12 @@ Sub Class_Globals
 	Private pnlTrip As Panel
 	Private pnlMax As Panel
 	Private pnlAvg As Panel
+	Private pnlLimit As Panel
+	Private pnlWheelSize As Panel
+	Private pnlCirc As Panel
+	Private pnlNewLimit As Panel
+	Private pnlPktCount As Panel
+	Private pnlOdo As Panel
 	
 	' Private bc As ByteConverter
 	
@@ -46,9 +53,10 @@ Sub Class_Globals
 	' For the speed limit display on the speed dial
 	Private SpeedLimitx100 As Int
 	Private WheelCirc As Int
-	Private WheelSize As Int
+	Private WheelSizex10 As Int
 	Private NewSpeedLimitx100 As Int
 	Private PacketCount As Int
+	Private Odometer As Int
 
 End Sub
 
@@ -132,6 +140,14 @@ Private Sub B4XPage_Appear
 		DrawNumberPanel(pnlPower, "Power", "", False)
 		DrawNumberPanel(pnlVolts, "Volts", "", False)
 		DrawNumberPanel(pnlAmps, "Amps", "", False)
+
+		DrawNumberPanel(pnlLimit, "Limit", "km/h", False)
+		DrawNumberPanel(pnlWheelSize, "Wheel", "in", False)
+		DrawNumberPanel(pnlCirc, "Circ", "mm", False)
+
+		DrawNumberPanel(pnlNewLimit, "NewLm", "km/h", False)
+		DrawNumberPanel(pnlPktCount, "Pkts", "", False)
+		DrawNumberPanel(pnlOdo, "Odo", "km", False)
 
 	Else if ConnectedDeviceType == 2 Then
 		UpdateTimer.Enabled = True
@@ -242,14 +258,21 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 			else If id.ToLowerCase.StartsWith("0000fff2") Then
 				' Motor settings
 				SpeedLimitx100 = Unsigned2(b(0), b(1))
+				DrawNumberPanelValue(pnlLimit, SpeedLimitx100, 100, 0, "")
 				WheelCirc = Unsigned2(b(2), b(3))
-				WheelSize = Unsigned2(b(4), b(5))
+				DrawNumberPanelValue(pnlCirc, WheelCirc, 1, 0, "")
+				' Unscramble the 12.4 encoding of wheel size
+				WheelSizex10 = Bit.ShiftRight(Unsigned2(b(4), b(5)), 4) * 10 + Bit.And(Unsigned(b(4)), 0xF)
+				DrawNumberPanelValue(pnlWheelSize, WheelSizex10, 10, 0, "")
 				NewSpeedLimitx100 = Unsigned2(b(6), b(7))
+				DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
 				PacketCount = Unsigned2(b(8), b(9))
+				DrawNumberPanelValue(pnlPktCount, PacketCount, 1, 0, "")
 
 			else If id.ToLowerCase.StartsWith("0000fff3") Then
 				' Motor resettable trip
 				DrawNumberPanelValue(pnlTrip, Unsigned2(b(2), b(3)), 10, 1, "")
+				DrawNumberPanelValue(pnlOdo, Unsigned2(b(0), b(1)), 1, 1, "")
 				' Store these for the next speed dial update. They don't change frequently
 				MaxSpdx10 = Unsigned2(b(6), b(7))
 				DrawNumberPanelValue(pnlMax, MaxSpdx10, 10, 0, "")
@@ -531,6 +554,8 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas)
 	If PacketCount == 0 Then
 		Return	' no information yet
 	End If
+	
+	'TODO - this really shouuld be based on packet count.
 	
 	If SpeedLimitx100 == NewSpeedLimitx100 Then
 		' Just draw the red spot at current limit.
