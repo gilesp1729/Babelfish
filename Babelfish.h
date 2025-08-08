@@ -39,6 +39,8 @@ typedef struct Settings
   uint16_t limit;           // speed limit in km/h*100
   uint16_t wheel_size;      // wheel size in 12.4 (decimal fraction part in low nibble)
   uint16_t circ;            // wheel circumference in mm
+  uint16_t new_limit;       // Speed limit set by outside writer, in km/h*100
+  uint16_t packet_count;    // Incremented by one when a speed limit packet is received
 };
 
 // Motor controller readings, derived values, display values, and settings

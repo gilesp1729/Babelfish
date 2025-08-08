@@ -81,7 +81,7 @@ Private Sub B4XPage_Appear
 	If Connected Then
 		' when coming back from Page1, disconnect any connected peripheral
 		Starter.manager.Disconnect
-		Manager_Disconnected
+		'Manager_Disconnected   ' it's already called
 	End If
 End Sub
 
@@ -170,6 +170,8 @@ End Sub
 Sub Manager_Disconnected
 	Log("Disconnected")
 	Connected = False
+	Dim pws As PhoneWakeState
+	pws.ReleaseKeepAlive
 End Sub
 
 ' Device clicked on - connect to the device and throw us to Page1
@@ -198,6 +200,8 @@ Sub Manager_Connected (services As List)
 	B4XPages.ShowPage("Page 1")
 	'Can only set title after page is shown.
 	B4XPages.SetTitle(Page1, ConnectedName)
+	Dim pws As PhoneWakeState
+	pws.KeepAlive(True)
 End Sub
 
 ' Timer routine fires when the device could not connect within a reasonable time

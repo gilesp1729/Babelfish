@@ -37,6 +37,8 @@ int testmode_poll(void)
     settings.limit = 25 * 100;
     settings.wheel_size = 29 << 4;
     settings.circ = 2312;
+    settings.new_limit = 35 * 100;   //different from settings.limit
+    settings.packet_count = 1;
 
     // recompute the derived values
     motor.power = ((long)motor.volts * motor.amps) / 10000L;

@@ -42,6 +42,13 @@ Sub Class_Globals
 	Private MaxSpdx10 As Int = 0
 	Private AvgSpdx10 As Int = 0
 	Private cvsSpeed As B4XCanvas
+	
+	' For the speed limit display on the speed dial
+	Private SpeedLimitx100 As Int
+	Private WheelCirc As Int
+	Private WheelSize As Int
+	Private NewSpeedLimitx100 As Int
+	Private PacketCount As Int
 
 End Sub
 
@@ -219,6 +226,9 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				' Draw things that have to appear on top of the speed stripe
 				DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
 				DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
+				' Draw speed limit spot when a speed limit packet has been
+				' received on the CAN bus. They are infrequent (15-20 seconds apart)
+				DrawSpeedLimitSpot(pnlSpeed, cvsSpeed)
 				
 				DrawNumberPanelValue(pnlCadence, Unsigned(b(2)), 1, 0, "")
 				DrawNumberPanelValue(pnlRange, Unsigned2(b(9), b(10)), 100, 0, "")
@@ -231,8 +241,11 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				
 			else If id.ToLowerCase.StartsWith("0000fff2") Then
 				' Motor settings
-				' TODO Leave this out for now
-
+				SpeedLimitx100 = Unsigned2(b(0), b(1))
+				WheelCirc = Unsigned2(b(2), b(3))
+				WheelSize = Unsigned2(b(4), b(5))
+				NewSpeedLimitx100 = Unsigned2(b(6), b(7))
+				PacketCount = Unsigned2(b(8), b(9))
 
 			else If id.ToLowerCase.StartsWith("0000fff3") Then
 				' Motor resettable trip
@@ -503,6 +516,41 @@ Sub DrawSpeedMark(pan As Panel, cvs As B4XCanvas, Speedx10 As Int, Color As Int)
 	Dim angleFinish As Float = SpeedDialAngle(Speedx10 - hw)
 	Dim path As B4XPath = SpeedDialPath(pan, angleStart, angleFinish)
 	cvs.DrawPath(path, Color, True, 0)
+	cvs.Invalidate
+	
+End Sub
+
+'Draw a speed limit spot on the dial.
+' If no speed limit packets have been received on the CAN bus, don't draw it.
+' If the new speed limit has been set and a confirmation packet has not 
+' been received, draw it in grey.
+Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas)
+	Dim cx As Float = pan.Width / 2
+	Dim cy As Float = pan.Height / 2
+	Dim rad As Float = pan.Height / 2 - gap
+	If PacketCount == 0 Then
+		Return	' no information yet
+	End If
+	
+	If SpeedLimitx100 == NewSpeedLimitx100 Then
+		' Just draw the red spot at current limit.
+		Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
+		Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
+		Dim x As Float = cx + rad * Cos(Angle)
+		Dim y As Float = cy - rad * Sin(Angle)
+		Dim r As Float = gap / 2
+		cvs.DrawCircle(x, y, r, Colors.White, True, 0)
+		cvs.DrawCircle(x, y, r, Colors.Red, False, 2dip)
+	Else
+		' Draw the spot in gray at the new limit. It will be redrawn
+		' when the packet confirms the new limit has been accepted.
+		Dim Angle As Float = SpeedDialAngle(NewSpeedLimitx100 / 10)
+		Dim x As Float = cx + rad * Cos(Angle)
+		Dim y As Float = cy - rad * Sin(Angle)
+		Dim r As Float = gap / 2
+		cvs.DrawCircle(x, y, r, Colors.LightGray, True, 0)
+		cvs.DrawCircle(x, y, r, Colors.Gray, False, 2dip)
+	End If
 	cvs.Invalidate
 	
 End Sub

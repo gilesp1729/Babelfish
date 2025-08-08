@@ -126,6 +126,10 @@ void fillMS()
   bleBuffer[n++] = (settings.circ >> 8) & 0xff;
   bleBuffer[n++] = settings.wheel_size & 0xff;
   bleBuffer[n++] = (settings.wheel_size >> 8) & 0xff;
+  bleBuffer[n++] = settings.new_limit & 0xff;
+  bleBuffer[n++] = (settings.new_limit >> 8) & 0xff;
+  bleBuffer[n++] = settings.packet_count & 0xff;
+  bleBuffer[n++] = (settings.packet_count >> 8) & 0xff;
   gatt.setChar(motorSettings, bleBuffer, n);
 
   n = 0;
@@ -247,6 +251,7 @@ void setup()
   // Initialise some values to sensible defaults
   motor.battery_level = 100;
   settings.circ = 2312;   // 29" wheel
+  settings.packet_count = 0;
 
   // Don't advertise the battery service; it will be found when the app connects,
   // if the app is looking for it
@@ -257,8 +262,8 @@ void setup()
   motorService = gatt.addService(0xFFF0);
   motorMeasurement =
     gatt.addCharacteristic(0xFFF1, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 14, 14, BLE_DATATYPE_BYTEARRAY);
-  motorSettings =  // TODO maybe this doesn't need to be writable?
-    gatt.addCharacteristic(0xFFF2, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_WRITE | GATT_CHARS_PROPERTIES_NOTIFY, 6, 6, BLE_DATATYPE_BYTEARRAY);
+  motorSettings = 
+    gatt.addCharacteristic(0xFFF2, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_WRITE | GATT_CHARS_PROPERTIES_NOTIFY, 10, 10, BLE_DATATYPE_BYTEARRAY);
   motorResettableTrip =
     gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 8, 8, BLE_DATATYPE_BYTEARRAY);
 
