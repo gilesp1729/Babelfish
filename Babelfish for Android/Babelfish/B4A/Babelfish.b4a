@@ -25,7 +25,7 @@ Version=13.1
 #Region  Project Attributes 
 	#ApplicationLabel: Babelfish
 	#VersionCode: 1
-	#VersionName: 
+	#VersionName: 1.0
 	'SupportedOrientations possible values: unspecified, landscape or portrait.
 	#SupportedOrientations: portrait
 	#CanInstallToExternalStorage: False
