@@ -144,6 +144,18 @@ void fillMS()
   gatt.setChar(motorResettableTrip, bleBuffer, n);
 }
 
+// Read the motor settings characteristic to see if an external
+// (central) device has written a new speed limit
+void readMS()
+{
+  gatt.getChar(motorSettings, bleBuffer, 10);
+  //settings.limit = bleBuffer[0] + ((uint16_t)bleBuffer[1] << 8);
+  //settings.circ = bleBuffer[2] + ((uint16_t)bleBuffer[3] << 8);
+  //settings.wheel_size = bleBuffer[4] + ((uint16_t)bleBuffer[5] << 8);
+  settings.new_limit = bleBuffer[6] + ((uint16_t)bleBuffer[7] << 8);
+  //settings.packet_count = bleBuffer[8] + ((uint16_t)bleBuffer[9] << 8);
+}
+
 // Update old values and send CP and MS to BLE client
 void update_chars()
 {
@@ -385,6 +397,16 @@ void loop()
     while (ble.isConnected())
     {
       connected = 1;
+
+      // Check if any updateable characteristics have been written to.
+      readMS();
+      if (settings.new_limit != settings.limit)
+      {
+        // Stop repeated setting of speed limit. If setting doen't stick, the next
+        // bus scan will trigger it again
+        settings.limit = settings.new_limit;
+        send_speed_limit(mcp, settings.new_limit / 100);
+      }
 
       // Check if wheel or crank intervals have expired; increment their
       // rev counters if they have.

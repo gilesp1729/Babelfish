@@ -513,10 +513,12 @@ Serial.println(speed);
   }
   Serial.println();
 
+#if 0 // Nobble this for testing
   mcp.beginExtendedPacket(0x05103203);
   for (i = 0; i < 6; i++)
     mcp.write(data[i]);
   mcp.endPacket();
+#endif
 }
 
 // Send a speed limit/wheel size/circumference packet with a

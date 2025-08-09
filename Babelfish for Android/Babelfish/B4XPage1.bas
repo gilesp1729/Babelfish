@@ -11,7 +11,8 @@ Sub Class_Globals
 	Private bgndColor As Int
 	Private borderColor As Int
 	Private textColor As Int
-
+	Private xFont As B4XFont
+	
 	' Panels on the display
 	Private pnlBackground As B4XView
 	Private pnlSpeed As Panel
@@ -50,13 +51,17 @@ Sub Class_Globals
 	Private AvgSpdx10 As Int = 0
 	Private cvsSpeed As B4XCanvas
 	
-	' For the speed limit display on the speed dial
+	' For the speed limit display and interaction on the speed dial
 	Private SpeedLimitx100 As Int
 	Private WheelCirc As Int
 	Private WheelSizex10 As Int
 	Private NewSpeedLimitx100 As Int
 	Private PacketCount As Int
 	Private Odometer As Int
+	Private downX, downY, downAngle As Float
+	Private downSpeedLimitx100 As Float
+	Private settingsService As String
+	Private settingsChar As String
 
 End Sub
 
@@ -77,6 +82,7 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	bgndColor = Starter.bgndColor
 	borderColor = Starter.borderColor
 	textColor = Starter.textColor
+	xFont = xui.CreateDefaultFont(36)
 	
 	cvsSpeed.Initialize(pnlSpeed)
 
@@ -244,7 +250,7 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
 				' Draw speed limit spot when a speed limit packet has been
 				' received on the CAN bus. They are infrequent (15-20 seconds apart)
-				DrawSpeedLimitSpot(pnlSpeed, cvsSpeed)
+				DrawSpeedLimitSpot(pnlSpeed, cvsSpeed, False)
 				
 				DrawNumberPanelValue(pnlCadence, Unsigned(b(2)), 1, 0, "")
 				DrawNumberPanelValue(pnlRange, Unsigned2(b(9), b(10)), 100, 0, "")
@@ -256,7 +262,9 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				DrawStringPanelValue(pnlPAS, PASLevels(Unsigned(b(11))))
 				
 			else If id.ToLowerCase.StartsWith("0000fff2") Then
-				' Motor settings
+				' Motor settings. Remember the service and char ID's for later writing
+				settingsService = ServiceId
+				settingsChar = id
 				SpeedLimitx100 = Unsigned2(b(0), b(1))
 				DrawNumberPanelValue(pnlLimit, SpeedLimitx100, 100, 0, "")
 				WheelCirc = Unsigned2(b(2), b(3))
@@ -547,7 +555,7 @@ End Sub
 ' If no speed limit packets have been received on the CAN bus, don't draw it.
 ' If the new speed limit has been set and a confirmation packet has not 
 ' been received, draw it in grey.
-Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas)
+Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas, largeSpot As Boolean)
 	Dim cx As Float = pan.Width / 2
 	Dim cy As Float = pan.Height / 2
 	Dim rad As Float = pan.Height / 2 - gap
@@ -555,9 +563,21 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas)
 		Return	' no information yet
 	End If
 	
-	'TODO - this really shouuld be based on packet count.
-	
-	If SpeedLimitx100 == NewSpeedLimitx100 Then
+	If largeSpot Then
+		' We are dragging the spot, so draw it as a large speed limit sign
+		Dim Angle As Float = SpeedDialAngle(NewSpeedLimitx100 / 10)
+		Dim Angle As Float = SpeedDialAngle(NewSpeedLimitx100 / 10)
+		Dim r As Float = gap * 2
+		Dim largeRad As Float = rad + r
+		Dim x As Float = cx + largeRad * Cos(Angle)
+		Dim y As Float = cy - largeRad * Sin(Angle)
+		cvs.DrawCircle(x, y, r, Colors.White, True, 0)
+		cvs.DrawCircle(x, y, r, Colors.Red, False, 6dip)
+		' We can align to centre horizontally, but still have to tweak it vertically
+		cvs.DrawText(NumberFormat(NewSpeedLimitx100 / 100, 1, 0), x, y + 20dip, xFont, Colors.Black, "CENTER")
+
+	'TODO - should this test really be based on packet count?
+	Else If SpeedLimitx100 == NewSpeedLimitx100 Then
 		' Just draw the red spot at current limit.
 		Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
 		Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
@@ -578,4 +598,76 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas)
 	End If
 	cvs.Invalidate
 	
+End Sub
+
+#if 0
+' Compute the lenth of a vector, and the dot product of two vectors.
+Private Sub len(x0 As Float, y0 As Float, x1 As Float, y1 As Float) As Float
+	Dim xv As Float = x1 - x0
+	Dim yv As Float = y1 - y0
+	Return Sqrt(xv * xv + yv * yv) 	
+End Sub
+
+Private Sub dotProduct(x0 As Float, y0 As Float, x1 As Float, y1 As Float, x2 As Float, y2 As Float) As Float
+	Dim l1 As Float = len(x0, y0, x1, y1)
+	Dim l2 As Float = len(x0, y0, x2, y2)
+	Dim xv1 As Float = x1 - x0
+	Dim yv1 As Float = y1 - y0
+	Dim xv2 As Float = x2 - x0
+	Dim yv2 As Float = y2 - y0
+	Dim dot As Float = (xv1 * xv2 + yv1 * yv2) / (l1 * l2)
+	Return dot
+	
+End Sub
+#end if
+
+' Handle touches, drags, etc. on the speed dial.
+Private Sub pnlSpeed_Touch (Action As Int, X As Float, Y As Float)
+	Select Action
+		Case pnlSpeed.ACTION_DOWN
+			downX = X
+			downY = Y
+			Dim cx As Float = pnlSpeed.Left + pnlSpeed.Width / 2
+			Dim cy As Float = pnlSpeed.Top + pnlSpeed.Height / 2
+			downAngle = ATan2(Y - cy, X - cx)
+			downSpeedLimitx100 = NewSpeedLimitx100
+			DrawSpeedDial(pnlSpeed, cvsSpeed)
+			DrawSpeedLimitSpot(pnlSpeed, cvsSpeed, True)
+			cvsSpeed.Invalidate
+
+		Case pnlSpeed.ACTION_MOVE
+			' if we haven't long pressed, then ignore
+			'If (Not(longPress)) Then Return
+			' Compute new position and put in NewSpeedLimitx100
+			' Dot product between (X,Y) and (DownX,DownY) with (cx,cy) as origin
+			' Do this in screen ooordinates
+			Dim cx As Float = pnlSpeed.Left + pnlSpeed.Width / 2
+			Dim cy As Float = pnlSpeed.Top + pnlSpeed.Height / 2
+			Dim Angle As Float = ATan2(Y - cy, X - cx)
+			'Log("Angle between " & (Angle - downAngle))
+			' Compute speed difference from angle difference, and apply that to NewSpeedLimitx100.
+			' Because of the negative-downwards Y axis, positive angle differences increase speed.
+			' Only 25, 35, 45 are allowed
+			Dim spdiffx100 As Float = 6000 * (Angle - downAngle) / (3 * Pi / 2)
+			NewSpeedLimitx100 = downSpeedLimitx100 + spdiffx100
+			' Draw the spot as a speed limit sign
+			ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
+			DrawSpeedDial(pnlSpeed, cvsSpeed)
+			DrawSpeedLimitSpot(pnlSpeed, cvsSpeed, True)
+			cvsSpeed.Invalidate
+
+		Case pnlSpeed.ACTION_UP
+			' Send in the new speed limit
+			' Write the characteristic. Only the new limit field is taken notice of.
+			Dim b(10) As Byte
+			b(6) = Bit.And(NewSpeedLimitx100, 0xFF)
+			b(7) = Bit.And(Bit.ShiftRight(NewSpeedLimitx100, 8), 0xFF)
+			Starter.manager.WriteData(settingsService, settingsChar, b)
+			' Redraw the original spot
+			' If value has changed, the gray spot will show until the confirming packet is received
+			ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
+			DrawSpeedDial(pnlSpeed, cvsSpeed)
+			DrawSpeedLimitSpot(pnlSpeed, cvsSpeed, False)
+			cvsSpeed.Invalidate
+	End Select
 End Sub
