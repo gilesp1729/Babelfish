@@ -36,18 +36,9 @@ int testmode_poll(void)
 
     settings.wheel_size = 29 << 4;
     settings.circ = 2312;
-    if (settings.packet_count == 0)
-    {
-      // Start out at 25
-      settings.limit = 25 * 100;
-      // initialise new limit
-      settings.packet_count++;
-      settings.new_limit = settings.limit;
-    }
-    else if (settings.new_limit != settings.limit)
+    if (settings.new_limit != settings.limit)
     {
       // simulate confirmation packet from motor with new limit changed
-      settings.packet_count++;
       settings.limit = settings.new_limit;
     }
 

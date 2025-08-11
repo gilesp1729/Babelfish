@@ -10,6 +10,6 @@ ModuleClosedNodes0=
 ModuleClosedNodes1=
 ModuleClosedNodes2=
 ModuleClosedNodes3=
-NavigationStack=B4XPage1,ClearSpeedDial,447,0,B4XPage1,DrawNumberPanel,397,0,B4XPage1,Unsigned,205,0,B4XPage1,B4XPage_Appear,107,0,B4XPage1,Class_Globals,44,6,B4XPage1,AvailCallback,228,6,B4XPage1,B4XPage_Disappear,193,0,B4XPage1,UpdateTimer_Tick,202,6,B4XPage1,DrawSpeedLimitSpot,621,6,B4XPage1,pnlSpeed_Touch,628,6,B4XPage1,B4XPage_Created,73,0
+NavigationStack=B4XPage1,B4XPage_Created,73,0,B4XPage1,UpdateTimer_Tick,215,6,B4XPage1,Unsigned4,289,0,B4XPage1,DrawSpeedMark,573,0,B4XPage1,AvailCallback,289,6,B4XPage1,Class_Globals,54,6,B4XPage1,B4XPage_Appear,98,6,B4XPage1,B4XPage_Disappear,211,0,B4XPage1,pnlSpeed_Touch,693,6,B4XPage1,DrawSpeedLimitSpot,620,6
 SelectedBuild=0
 VisibleModules=1,2,3

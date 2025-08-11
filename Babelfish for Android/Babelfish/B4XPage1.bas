@@ -34,6 +34,8 @@ Sub Class_Globals
 	Private pnlOdo As Panel
 	
 	Private bc As ByteConverter
+	Private cscService, cpService, bfService, batService As String
+	Private servList As List
 	
 	' For CSC and CP
 	Private UpdateTimer As Timer
@@ -56,8 +58,7 @@ Sub Class_Globals
 	Private WheelCirc As Int
 	Private WheelSizex10 As Int
 	Private NewSpeedLimitx100 As Int
-	Private PacketCount As Int
-	Private Odometer As Int
+	Private packetsSeen As Boolean
 	Private downX, downY, downAngle As Float
 	Private downSpeedLimitx100 As Float
 	Private settingsService As String
@@ -99,26 +100,43 @@ Private Sub B4XPage_Appear
 	' 2 = CP service found
 	' 3 = CP service found as well as the custom motor service (0xFFF0)
 	' There will generally be a Battery service along for the ride too.
+	' Collect their UUIDs here.
 	ConnectedDeviceType = 0
+	packetsSeen = False
 	Dim cscSeen = False As Boolean
 	Dim cpSeen = False As Boolean
 	Dim bfSeen = False As Boolean
+	Dim batSeen = False As Boolean
+	servList.Initialize
 	For Each s As String In Starter.ConnectedServices
 		If s.ToLowerCase.StartsWith("00001816") Then	' CSC
 			cscSeen = True
+			cscService = s
 		Else If s.ToLowerCase.StartsWith("00001818") Then	' CP
 			cpSeen = True
-		Else If s.ToLowerCase.StartsWith("0000fff0") Then	' babelfish, but only if CP is also seen
+			cpService = s
+		Else If s.ToLowerCase.StartsWith("0000fff0") Then	' Babelfish, but only if CP is also seen
 			bfSeen = True
+			bfService = s
+		Else if	s.ToLowerCase.StartsWith("0000180f") Then	' Battery service
+			batSeen = True
+			batService = s
 		End If
 	Next
 	If bfSeen And cpSeen Then
 		ConnectedDeviceType = 3
+		servList.Add(bfService)
 	Else If cpSeen Then
 		ConnectedDeviceType = 2
+		servList.Add(cpService)
 	Else If cscSeen Then
 		ConnectedDeviceType = 1
+		servList.Add(cscService)
 	End If
+	If batSeen Then
+		servList.Add(batService)
+	End If
+
 	Log("Connected to device of type " & ConnectedDeviceType)
 	
 	' Set up display panels. If we have type 0 (nothing sensible is found)
@@ -200,13 +218,12 @@ Private Sub B4XPage_Disappear
 	UpdateTimer.Enabled = False
 End Sub
 
-' When timer fires, read all the characteristics for all the services.
+' When timer fires, read all the characteristics for all the wanted services.
 Sub UpdateTimer_Tick
-	For Each s As String In Starter.ConnectedServices
+	For Each s As String In servList
+		Log("ReadData from " & s)
 		Starter.manager.ReadData(s)
 	Next
-	' Uncomment this to Read once. This lets the writes work!
-	' UpdateTimer.Enabled = False
 End Sub
 
 ' Unsigned byte helpers
@@ -274,16 +291,16 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				' Unscramble the 12.4 encoding of wheel size
 				WheelSizex10 = Bit.ShiftRight(Unsigned2(b(4), b(5)), 4) * 10 + Bit.And(Unsigned(b(4)), 0xF)
 				DrawNumberPanelValue(pnlWheelSize, WheelSizex10, 10, 0, "")
-				PacketCount = Unsigned2(b(6), b(7))
-				DrawNumberPanelValue(pnlPktCount, PacketCount, 1, 0, "")
 
 			else If id.ToLowerCase.StartsWith("0000fff3") Then
 				' Writable new speed limit. Remember the service and char ID's for later writing
+				packetsSeen = True
 				settingsService = ServiceId
 				settingsChar = id
+#if 0
 				NewSpeedLimitx100 = Unsigned2(b(0), b(1))
 				DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
-
+#end if
 			else If id.ToLowerCase.StartsWith("0000fff4") Then
 				' Motor resettable trip
 				DrawNumberPanelValue(pnlTrip, Unsigned2(b(2), b(3)), 10, 1, "")
@@ -566,7 +583,7 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas, largeSpot As Boolean)
 	Dim cx As Float = pan.Width / 2
 	Dim cy As Float = pan.Height / 2
 	Dim rad As Float = pan.Height / 2 - gap
-	If PacketCount == 0 Then
+	If Not(packetsSeen) Then
 		Return	' no information yet
 	End If
 	
@@ -606,27 +623,6 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas, largeSpot As Boolean)
 	cvs.Invalidate
 	
 End Sub
-
-#if 0
-' Compute the lenth of a vector, and the dot product of two vectors.
-Private Sub len(x0 As Float, y0 As Float, x1 As Float, y1 As Float) As Float
-	Dim xv As Float = x1 - x0
-	Dim yv As Float = y1 - y0
-	Return Sqrt(xv * xv + yv * yv) 	
-End Sub
-
-Private Sub dotProduct(x0 As Float, y0 As Float, x1 As Float, y1 As Float, x2 As Float, y2 As Float) As Float
-	Dim l1 As Float = len(x0, y0, x1, y1)
-	Dim l2 As Float = len(x0, y0, x2, y2)
-	Dim xv1 As Float = x1 - x0
-	Dim yv1 As Float = y1 - y0
-	Dim xv2 As Float = x2 - x0
-	Dim yv2 As Float = y2 - y0
-	Dim dot As Float = (xv1 * xv2 + yv1 * yv2) / (l1 * l2)
-	Return dot
-	
-End Sub
-#end if
 
 ' Handle touches, drags, etc. on the speed dial.
 Private Sub pnlSpeed_Touch (Action As Int, X As Float, Y As Float)

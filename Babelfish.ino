@@ -127,8 +127,6 @@ void fillMS()
   bleBuffer[n++] = (settings.circ >> 8) & 0xff;
   bleBuffer[n++] = settings.wheel_size & 0xff;
   bleBuffer[n++] = (settings.wheel_size >> 8) & 0xff;
-  bleBuffer[n++] = settings.packet_count & 0xff;
-  bleBuffer[n++] = (settings.packet_count >> 8) & 0xff;
   gatt.setChar(motorSettingsRead, bleBuffer, n);
 
   n = 0;
@@ -143,12 +141,19 @@ void fillMS()
   gatt.setChar(motorResettableTrip, bleBuffer, n);
 }
 
+#define READMS_INTERVAL 300
+static uint32_t last_readMS_time = 0;
 // Read the motor settings characteristic to see if an external
 // (central) device has written a new speed limit
 void readMS()
 {
-  gatt.getChar(motorSettingsWrite, bleBuffer, 2);
-  settings.new_limit = bleBuffer[0] + ((uint16_t)bleBuffer[1] << 8);
+  uint32_t time_now = millis();
+  if (time_now > last_readMS_time + READMS_INTERVAL)
+  {
+    last_readMS_time = time_now;
+    gatt.getChar(motorSettingsWrite, bleBuffer, 2);
+    settings.new_limit = bleBuffer[0] + ((uint16_t)bleBuffer[1] << 8);
+  }
 }
 
 // Update old values and send CP and MS to BLE client
@@ -258,7 +263,6 @@ void setup()
   // Initialise some values to sensible defaults
   motor.battery_level = 100;
   settings.circ = 2312;   // 29" wheel
-  settings.packet_count = 0;
 
   // Don't advertise the battery service; it will be found when the app connects,
   // if the app is looking for it
@@ -270,9 +274,9 @@ void setup()
   motorMeasurement =
     gatt.addCharacteristic(0xFFF1, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 14, 14, BLE_DATATYPE_BYTEARRAY);
   motorSettingsRead = 
-    gatt.addCharacteristic(0xFFF2, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 8, 8, BLE_DATATYPE_BYTEARRAY);
+    gatt.addCharacteristic(0xFFF2, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 6, 6, BLE_DATATYPE_BYTEARRAY);
   motorSettingsWrite = 
-    gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_WRITE, 2, 2, BLE_DATATYPE_BYTEARRAY);
+    gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_WRITE, 2, 2, BLE_DATATYPE_BYTEARRAY);
   motorResettableTrip =
     gatt.addCharacteristic(0xFFF4, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 8, 8, BLE_DATATYPE_BYTEARRAY);
 
@@ -396,9 +400,12 @@ void loop()
       connected = 1;
 
       // Check if any updateable characteristics have been written to.
+      // There is a timer to stop reads flooding bluetooth
       readMS();
       if (settings.new_limit != settings.limit)
       {
+        Serial.print("New limit ");
+        Serial.println(settings.new_limit);
         // Stop repeated setting of speed limit. If setting doen't stick, the next
         // bus scan will trigger it again
         settings.limit = settings.new_limit;
@@ -410,6 +417,7 @@ void loop()
       updateWheelCrank();
 
       // Scan CAN bus and update characteristics.
+      // Speed packets will come roughly every 280ms
       int rc = scanbus(mcp, connected, verbosity, only_this_id);
       if (rc)
         pkts_seen = true;
@@ -420,7 +428,6 @@ void loop()
       if (rc)
       {
         // Update all characteristics.
-        // Speed packets will come roughly every 280ms
         update_chars();
       }
     }
