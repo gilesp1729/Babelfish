@@ -61,7 +61,8 @@ unsigned short flags = 0x30;
 
   uint8_t motorService;
   uint8_t motorMeasurement;
-  uint8_t motorSettings;
+  uint8_t motorSettingsRead;
+  uint8_t motorSettingsWrite;
   uint8_t motorResettableTrip;
 
 // Timing and counters
@@ -126,11 +127,9 @@ void fillMS()
   bleBuffer[n++] = (settings.circ >> 8) & 0xff;
   bleBuffer[n++] = settings.wheel_size & 0xff;
   bleBuffer[n++] = (settings.wheel_size >> 8) & 0xff;
-  bleBuffer[n++] = settings.new_limit & 0xff;
-  bleBuffer[n++] = (settings.new_limit >> 8) & 0xff;
   bleBuffer[n++] = settings.packet_count & 0xff;
   bleBuffer[n++] = (settings.packet_count >> 8) & 0xff;
-  gatt.setChar(motorSettings, bleBuffer, n);
+  gatt.setChar(motorSettingsRead, bleBuffer, n);
 
   n = 0;
   bleBuffer[n++] = display.odo & 0xff;
@@ -148,12 +147,8 @@ void fillMS()
 // (central) device has written a new speed limit
 void readMS()
 {
-  gatt.getChar(motorSettings, bleBuffer, 10);
-  //settings.limit = bleBuffer[0] + ((uint16_t)bleBuffer[1] << 8);
-  //settings.circ = bleBuffer[2] + ((uint16_t)bleBuffer[3] << 8);
-  //settings.wheel_size = bleBuffer[4] + ((uint16_t)bleBuffer[5] << 8);
-  settings.new_limit = bleBuffer[6] + ((uint16_t)bleBuffer[7] << 8);
-  //settings.packet_count = bleBuffer[8] + ((uint16_t)bleBuffer[9] << 8);
+  gatt.getChar(motorSettingsWrite, bleBuffer, 2);
+  settings.new_limit = bleBuffer[0] + ((uint16_t)bleBuffer[1] << 8);
 }
 
 // Update old values and send CP and MS to BLE client
@@ -274,10 +269,12 @@ void setup()
   motorService = gatt.addService(0xFFF0);
   motorMeasurement =
     gatt.addCharacteristic(0xFFF1, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 14, 14, BLE_DATATYPE_BYTEARRAY);
-  motorSettings = 
-    gatt.addCharacteristic(0xFFF2, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_WRITE | GATT_CHARS_PROPERTIES_NOTIFY, 10, 10, BLE_DATATYPE_BYTEARRAY);
+  motorSettingsRead = 
+    gatt.addCharacteristic(0xFFF2, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 8, 8, BLE_DATATYPE_BYTEARRAY);
+  motorSettingsWrite = 
+    gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_WRITE, 2, 2, BLE_DATATYPE_BYTEARRAY);
   motorResettableTrip =
-    gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 8, 8, BLE_DATATYPE_BYTEARRAY);
+    gatt.addCharacteristic(0xFFF4, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 8, 8, BLE_DATATYPE_BYTEARRAY);
 
   // Initial values for wheel and crank timers
   unsigned long t = millis();

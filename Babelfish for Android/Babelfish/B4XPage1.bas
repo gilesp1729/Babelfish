@@ -33,7 +33,7 @@ Sub Class_Globals
 	Private pnlPktCount As Panel
 	Private pnlOdo As Panel
 	
-	' Private bc As ByteConverter
+	Private bc As ByteConverter
 	
 	' For CSC and CP
 	Private UpdateTimer As Timer
@@ -77,7 +77,7 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	Log("Page Create")
 	Root = Root1
 	Root.LoadLayout("Page1")
-	UpdateTimer.Initialize("UpdateTimer", 1000)
+	UpdateTimer.Initialize("UpdateTimer", 5000)
 	
 	bgndColor = Starter.bgndColor
 	borderColor = Starter.borderColor
@@ -200,11 +200,13 @@ Private Sub B4XPage_Disappear
 	UpdateTimer.Enabled = False
 End Sub
 
-' When timer fires, read all the characteristics for all te services.
+' When timer fires, read all the characteristics for all the services.
 Sub UpdateTimer_Tick
 	For Each s As String In Starter.ConnectedServices
 		Starter.manager.ReadData(s)
 	Next
+	' Uncomment this to Read once. This lets the writes work!
+	' UpdateTimer.Enabled = False
 End Sub
 
 ' Unsigned byte helpers
@@ -232,11 +234,13 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 	Dim battIcon As String
 	Dim PASLevels() As String
 	PASLevels = Array As String ("Off", "Eco", "Tour", "Sport", "Sp+", "Boost")
-	' Log("Service " & ServiceId)
+	Log("------------------- AVAIL CALLBACK -----------------------")
+	Log("Service " & ServiceId)
 	For Each id As String In Characteristics.Keys
-		' Log("Char ID " & id)
+		Log("Char ID " & id)
+		Log("Props " & Starter.manager.GetCharacteristicProperties(ServiceId, id))
 		b = Characteristics.Get(id)
-		' Log(bc.HexFromBytes(b))
+		Log(bc.HexFromBytes(b))
 		
 		If ConnectedDeviceType == 3 Then
 			' Babelfish Motor service
@@ -262,9 +266,7 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				DrawStringPanelValue(pnlPAS, PASLevels(Unsigned(b(11))))
 				
 			else If id.ToLowerCase.StartsWith("0000fff2") Then
-				' Motor settings. Remember the service and char ID's for later writing
-				settingsService = ServiceId
-				settingsChar = id
+				' Motor settings.
 				SpeedLimitx100 = Unsigned2(b(0), b(1))
 				DrawNumberPanelValue(pnlLimit, SpeedLimitx100, 100, 0, "")
 				WheelCirc = Unsigned2(b(2), b(3))
@@ -272,12 +274,17 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				' Unscramble the 12.4 encoding of wheel size
 				WheelSizex10 = Bit.ShiftRight(Unsigned2(b(4), b(5)), 4) * 10 + Bit.And(Unsigned(b(4)), 0xF)
 				DrawNumberPanelValue(pnlWheelSize, WheelSizex10, 10, 0, "")
-				NewSpeedLimitx100 = Unsigned2(b(6), b(7))
-				DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
-				PacketCount = Unsigned2(b(8), b(9))
+				PacketCount = Unsigned2(b(6), b(7))
 				DrawNumberPanelValue(pnlPktCount, PacketCount, 1, 0, "")
 
 			else If id.ToLowerCase.StartsWith("0000fff3") Then
+				' Writable new speed limit. Remember the service and char ID's for later writing
+				settingsService = ServiceId
+				settingsChar = id
+				NewSpeedLimitx100 = Unsigned2(b(0), b(1))
+				DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
+
+			else If id.ToLowerCase.StartsWith("0000fff4") Then
 				' Motor resettable trip
 				DrawNumberPanelValue(pnlTrip, Unsigned2(b(2), b(3)), 10, 1, "")
 				DrawNumberPanelValue(pnlOdo, Unsigned2(b(0), b(1)), 1, 1, "")
@@ -659,9 +666,11 @@ Private Sub pnlSpeed_Touch (Action As Int, X As Float, Y As Float)
 		Case pnlSpeed.ACTION_UP
 			' Send in the new speed limit
 			' Write the characteristic. Only the new limit field is taken notice of.
-			Dim b(10) As Byte
-			b(6) = Bit.And(NewSpeedLimitx100, 0xFF)
-			b(7) = Bit.And(Bit.ShiftRight(NewSpeedLimitx100, 8), 0xFF)
+			Dim b(2) As Byte
+			Log("New speed limitx100 " & NewSpeedLimitx100)
+			b(0) = Bit.And(NewSpeedLimitx100, 0xFF)
+			b(1) = Bit.And(Bit.ShiftRight(NewSpeedLimitx100, 8), 0xFF)
+			Log("Writing " & bc.HexFromBytes(b) & " to " & settingsService & " " & settingsChar)
 			Starter.manager.WriteData(settingsService, settingsChar, b)
 			' Redraw the original spot
 			' If value has changed, the gray spot will show until the confirming packet is received

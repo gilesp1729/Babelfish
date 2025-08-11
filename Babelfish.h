@@ -34,6 +34,8 @@ typedef struct Display
 };
 
 // These fields are writable settings for the motor.
+// In practice only the speed limit is ever written (in a separate writable
+// characteristic)
 typedef struct Settings
 {
   uint16_t limit;           // speed limit in km/h*100

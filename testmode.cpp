@@ -41,6 +41,7 @@ int testmode_poll(void)
       // Start out at 25
       settings.limit = 25 * 100;
       // initialise new limit
+      settings.packet_count++;
       settings.new_limit = settings.limit;
     }
     else if (settings.new_limit != settings.limit)
