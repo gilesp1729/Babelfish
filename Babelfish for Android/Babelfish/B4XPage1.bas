@@ -30,7 +30,6 @@ Sub Class_Globals
 	Private pnlWheelSize As Panel
 	Private pnlCirc As Panel
 	Private pnlNewLimit As Panel
-	Private pnlPktCount As Panel
 	Private pnlOdo As Panel
 	
 	Private bc As ByteConverter
@@ -59,8 +58,6 @@ Sub Class_Globals
 	Private WheelSizex10 As Int
 	Private NewSpeedLimitx100 As Int
 	Private packetsSeen As Boolean
-	Private downX, downY, downAngle As Float
-	Private downSpeedLimitx100 As Float
 	Private settingsService As String
 	Private settingsChar As String
 
@@ -91,7 +88,8 @@ End Sub
 
 Private Sub B4XPage_Appear
 	' Draw panels for quantities to be displayed
-	' Set the background to black
+	' Set background panel to the background color
+	' (the action bar is taken care of in the manifest)
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
 	
 	' Go through the list of services and find out what we are connected to.
@@ -170,7 +168,6 @@ Private Sub B4XPage_Appear
 		DrawNumberPanel(pnlCirc, "Circ", "mm", False)
 
 		DrawNumberPanel(pnlNewLimit, "NewLm", "km/h", False)
-		DrawNumberPanel(pnlPktCount, "Pkts", "", False)
 		DrawNumberPanel(pnlOdo, "Odo", "km", False)
 
 	Else if ConnectedDeviceType == 2 Then
@@ -180,15 +177,21 @@ Private Sub B4XPage_Appear
 		DrawSpeedDial(pnlSpeed, cvsSpeed)
 
 		DrawNumberPanel(pnlBattery, "", "", True)
-		DrawNumberPanel(pnlCadence, "Cad", "rpm", True)
-		DrawNumberPanel(pnlRange, "Power", "", True)		' Use Range field for power to keep it neat.
+		DrawNumberPanel(pnlCadence, "", "rpm", True)	' Don't show "cad" as it gets in the way of the speed dial
+		DrawNumberPanel(pnlPAS, "Power", "", True)		' Use PAS field for power to keep it neat.
 		DrawNumberPanelBlank(pnlTrip)
 		DrawNumberPanelBlank(pnlMax)
 		DrawNumberPanelBlank(pnlAvg)
 		DrawNumberPanelBlank(pnlPower)
 		DrawNumberPanelBlank(pnlVolts)
 		DrawNumberPanelBlank(pnlAmps)
-		DrawNumberPanelBlank(pnlPAS)
+		DrawNumberPanelBlank(pnlRange)
+		DrawNumberPanelBlank(pnlLimit)
+		DrawNumberPanelBlank(pnlWheelSize)
+		DrawNumberPanelBlank(pnlCirc)
+		DrawNumberPanelBlank(pnlNewLimit)
+		DrawNumberPanelBlank(pnlOdo)
+
 
 	Else If ConnectedDeviceType == 1 Then
 		UpdateTimer.Enabled = True
@@ -199,7 +202,7 @@ Private Sub B4XPage_Appear
 		DrawSpeedDial(pnlSpeed, cvsSpeed)
 
 		DrawNumberPanel(pnlBattery, "", "", True)
-		DrawNumberPanel(pnlCadence, "Cad", "rpm", True)
+		DrawNumberPanel(pnlCadence, "", "rpm", True)	' Don't show "cad" as it gets in the way of the speed dial
 		DrawNumberPanelBlank(pnlTrip)
 		DrawNumberPanelBlank(pnlMax)
 		DrawNumberPanelBlank(pnlAvg)
@@ -208,6 +211,11 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlAmps)
 		DrawNumberPanelBlank(pnlPAS)
 		DrawNumberPanelBlank(pnlRange)
+		DrawNumberPanelBlank(pnlLimit)
+		DrawNumberPanelBlank(pnlWheelSize)
+		DrawNumberPanelBlank(pnlCirc)
+		DrawNumberPanelBlank(pnlNewLimit)
+		DrawNumberPanelBlank(pnlOdo)
 
 	Else
 		ToastMessageShow("No usable services found.", False)				
@@ -221,7 +229,7 @@ End Sub
 ' When timer fires, read all the characteristics for all the wanted services.
 Sub UpdateTimer_Tick
 	For Each s As String In servList
-		Log("ReadData from " & s)
+		'Log("ReadData from " & s)
 		Starter.manager.ReadData(s)
 	Next
 End Sub
@@ -251,19 +259,21 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 	Dim battIcon As String
 	Dim PASLevels() As String
 	PASLevels = Array As String ("Off", "Eco", "Tour", "Sport", "Sp+", "Boost")
-	Log("------------------- AVAIL CALLBACK -----------------------")
-	Log("Service " & ServiceId)
+	'Log("------------------- AVAIL CALLBACK -----------------------")
+	'Log("Service " & ServiceId)
 	For Each id As String In Characteristics.Keys
-		Log("Char ID " & id)
-		Log("Props " & Starter.manager.GetCharacteristicProperties(ServiceId, id))
+		'Log("Char ID " & id)
+		'Log("Props " & Starter.manager.GetCharacteristicProperties(ServiceId, id))
 		b = Characteristics.Get(id)
-		Log(bc.HexFromBytes(b))
+		'Log(bc.HexFromBytes(b))
 		
 		If ConnectedDeviceType == 3 Then
 			' Babelfish Motor service
 			If id.ToLowerCase.StartsWith("0000fff1") Then
 				' Motor measurement
 				Dim Speedx100 As Int = Unsigned2(b(0), b(1))
+				ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
+				DrawSpeedDial(pnlSpeed, cvsSpeed)
 				DrawNumberPanelValue(pnlSpeed, Speedx100, 100, 1, "")
 				DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx100 / 10)
 				' Draw things that have to appear on top of the speed stripe
@@ -291,16 +301,17 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				' Unscramble the 12.4 encoding of wheel size
 				WheelSizex10 = Bit.ShiftRight(Unsigned2(b(4), b(5)), 4) * 10 + Bit.And(Unsigned(b(4)), 0xF)
 				DrawNumberPanelValue(pnlWheelSize, WheelSizex10, 10, 0, "")
+				If Not(packetsSeen) Then
+					NewSpeedLimitx100 = SpeedLimitx100
+					DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
+				End If
+				packetsSeen = True
 
 			else If id.ToLowerCase.StartsWith("0000fff3") Then
 				' Writable new speed limit. Remember the service and char ID's for later writing
-				packetsSeen = True
 				settingsService = ServiceId
 				settingsChar = id
-#if 0
-				NewSpeedLimitx100 = Unsigned2(b(0), b(1))
-				DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
-#end if
+
 			else If id.ToLowerCase.StartsWith("0000fff4") Then
 				' Motor resettable trip
 				DrawNumberPanelValue(pnlTrip, Unsigned2(b(2), b(3)), 10, 1, "")
@@ -322,7 +333,7 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				' is always present, since we can't handle separate devices for speed and cadence.
 				Dim flags As Int = Unsigned2(b(0), b(1))
 				' Power is bytes 2/3. Use the Range field to keep things neatly within the speed dial.
-				DrawNumberPanelValue(pnlRange, Unsigned2(b(2), b(3)), 1, 0, "W")
+				DrawNumberPanelValue(pnlPAS, Unsigned2(b(2), b(3)), 1, 0, "W")
 
 				' Wheel revolutions and wheel time
 				Dim wheelRev As Int = Unsigned4(b(4), b(5), b(6), b(7))
@@ -332,8 +343,11 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				If (wheelTime - lastWheelTime > 0) Then
 					' The division yields mm/ms (=m/s). Convert it to km/h*10
 					Dim Speedx10 As Int = ((wheelRev - lastWheelRev) * circ * 36) / (wheelTime - lastWheelTime)
+					ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
+					DrawSpeedDial(pnlSpeed, cvsSpeed)
 					DrawNumberPanelValue(pnlSpeed, Speedx10, 10, 1, "")
 					DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx10)
+					'Log("Speedx10 " & Speedx10)
 					lastWheelRev = wheelRev
 					lastWheelTime = wheelTime
 				End If
@@ -366,6 +380,8 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				If (wheelTime - lastWheelTime > 0) Then
 					' The division yields mm/ms (=m/s). Convert it to km/h*10
 					Dim Speedx10 As Int = ((wheelRev - lastWheelRev) * circ * 36) / (wheelTime - lastWheelTime)
+					ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
+					DrawSpeedDial(pnlSpeed, cvsSpeed)
 					DrawNumberPanelValue(pnlSpeed, Speedx10, 10, 1, "")
 					DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx10)
 					lastWheelRev = wheelRev
@@ -613,6 +629,7 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas, largeSpot As Boolean)
 	Else
 		' Draw the spot in gray at the new limit. It will be redrawn
 		' when the packet confirms the new limit has been accepted.
+		DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
 		Dim Angle As Float = SpeedDialAngle(NewSpeedLimitx100 / 10)
 		Dim x As Float = cx + rad * Cos(Angle)
 		Dim y As Float = cy - rad * Sin(Angle)
@@ -624,6 +641,7 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas, largeSpot As Boolean)
 	
 End Sub
 
+#if 0
 ' Handle touches, drags, etc. on the speed dial.
 Private Sub pnlSpeed_Touch (Action As Int, X As Float, Y As Float)
 	Select Action
@@ -676,3 +694,4 @@ Private Sub pnlSpeed_Touch (Action As Int, X As Float, Y As Float)
 			cvsSpeed.Invalidate
 	End Select
 End Sub
+#end if
