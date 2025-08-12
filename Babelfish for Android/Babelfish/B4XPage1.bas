@@ -11,7 +11,6 @@ Sub Class_Globals
 	Private bgndColor As Int
 	Private borderColor As Int
 	Private textColor As Int
-	Private xFont As B4XFont
 	
 	' Panels on the display
 	Private pnlBackground As B4XView
@@ -60,7 +59,12 @@ Sub Class_Globals
 	Private packetsSeen As Boolean
 	Private settingsService As String
 	Private settingsChar As String
-
+	
+	' For catching long presses and overlaying a menu
+	Private DownX, DownY As Float
+	Private longPressed As Boolean
+	Private LongPressTimer As Timer
+	Private pnlOverlay As B4XView
 End Sub
 
 'You can add more parameters here.
@@ -76,22 +80,29 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	Root = Root1
 	Root.LoadLayout("Page1")
 	UpdateTimer.Initialize("UpdateTimer", 5000)
+	LongPressTimer.Initialize("LongPressTimer", 1500)
 	
 	bgndColor = Starter.bgndColor
 	borderColor = Starter.borderColor
 	textColor = Starter.textColor
-	xFont = xui.CreateDefaultFont(36)
 	
 	cvsSpeed.Initialize(pnlSpeed)
 
 End Sub
 
+'--------------------------------------------------------------------------
+' Handle initial drawing of the page.
+
 Private Sub B4XPage_Appear
 	' Draw panels for quantities to be displayed
+
 	' Set background panel to the background color
 	' (the action bar is taken care of in the manifest)
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
-	
+	' Hide the menu away
+	pnlOverlay.Visible = False
+	pnlOverlay.Enabled = False
+
 	' Go through the list of services and find out what we are connected to.
 	' 0 = no relevant services (we just bail)
 	' 1 = CSC service found
@@ -226,6 +237,9 @@ Private Sub B4XPage_Disappear
 	UpdateTimer.Enabled = False
 End Sub
 
+'--------------------------------------------------------------------------
+' Handle repeated reading of characteristics from the connected peripheral
+
 ' When timer fires, read all the characteristics for all the wanted services.
 Sub UpdateTimer_Tick
 	For Each s As String In servList
@@ -281,7 +295,7 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
 				' Draw speed limit spot when a speed limit packet has been
 				' received on the CAN bus. They are infrequent (15-20 seconds apart)
-				DrawSpeedLimitSpot(pnlSpeed, cvsSpeed, False)
+				DrawSpeedLimitSpot(pnlSpeed, cvsSpeed)
 				
 				DrawNumberPanelValue(pnlCadence, Unsigned(b(2)), 1, 0, "")
 				DrawNumberPanelValue(pnlRange, Unsigned2(b(9), b(10)), 100, 0, "")
@@ -426,6 +440,8 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 	Next
 End Sub
 
+'--------------------------------------------------------------------------
+' Drawing routines
 
 ' Draw a number panel. There are three standard labels in the panel:
 ' 0 = Name
@@ -595,7 +611,7 @@ End Sub
 ' If no speed limit packets have been received on the CAN bus, don't draw it.
 ' If the new speed limit has been set and a confirmation packet has not 
 ' been received, draw it in grey.
-Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas, largeSpot As Boolean)
+Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas)
 	Dim cx As Float = pan.Width / 2
 	Dim cy As Float = pan.Height / 2
 	Dim rad As Float = pan.Height / 2 - gap
@@ -603,21 +619,7 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas, largeSpot As Boolean)
 		Return	' no information yet
 	End If
 	
-	If largeSpot Then
-		' We are dragging the spot, so draw it as a large speed limit sign
-		Dim Angle As Float = SpeedDialAngle(NewSpeedLimitx100 / 10)
-		Dim Angle As Float = SpeedDialAngle(NewSpeedLimitx100 / 10)
-		Dim r As Float = gap * 2
-		Dim largeRad As Float = rad + r
-		Dim x As Float = cx + largeRad * Cos(Angle)
-		Dim y As Float = cy - largeRad * Sin(Angle)
-		cvs.DrawCircle(x, y, r, Colors.White, True, 0)
-		cvs.DrawCircle(x, y, r, Colors.Red, False, 6dip)
-		' We can align to centre horizontally, but still have to tweak it vertically
-		cvs.DrawText(NumberFormat(NewSpeedLimitx100 / 100, 1, 0), x, y + 20dip, xFont, Colors.Black, "CENTER")
-
-	'TODO - should this test really be based on packet count?
-	Else If SpeedLimitx100 == NewSpeedLimitx100 Then
+	If SpeedLimitx100 == NewSpeedLimitx100 Then
 		' Just draw the red spot at current limit.
 		Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
 		Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
@@ -641,57 +643,47 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas, largeSpot As Boolean)
 	
 End Sub
 
-#if 0
-' Handle touches, drags, etc. on the speed dial.
-Private Sub pnlSpeed_Touch (Action As Int, X As Float, Y As Float)
+'--------------------------------------------------------------------------
+' Interactions with speed dial to display menus, etc.
+
+' Handle touches, etc. on the speed dial. Long presses via a timer.
+Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 	Select Action
 		Case pnlSpeed.ACTION_DOWN
-			downX = X
-			downY = Y
-			Dim cx As Float = pnlSpeed.Left + pnlSpeed.Width / 2
-			Dim cy As Float = pnlSpeed.Top + pnlSpeed.Height / 2
-			downAngle = ATan2(Y - cy, X - cx)
-			downSpeedLimitx100 = NewSpeedLimitx100
-			DrawSpeedDial(pnlSpeed, cvsSpeed)
-			DrawSpeedLimitSpot(pnlSpeed, cvsSpeed, True)
-			cvsSpeed.Invalidate
-
+			DownX = X
+			DownY = Y
+			longPressed = False
+			LongPressTimer.Enabled = True
+			Log("Down" & X & Y)
 		Case pnlSpeed.ACTION_MOVE
-			' if we haven't long pressed, then ignore
-			'If (Not(longPress)) Then Return
-			' Compute new position and put in NewSpeedLimitx100
-			' Dot product between (X,Y) and (DownX,DownY) with (cx,cy) as origin
-			' Do this in screen ooordinates
-			Dim cx As Float = pnlSpeed.Left + pnlSpeed.Width / 2
-			Dim cy As Float = pnlSpeed.Top + pnlSpeed.Height / 2
-			Dim Angle As Float = ATan2(Y - cy, X - cx)
-			'Log("Angle between " & (Angle - downAngle))
-			' Compute speed difference from angle difference, and apply that to NewSpeedLimitx100.
-			' Because of the negative-downwards Y axis, positive angle differences increase speed.
-			' Only 25, 35, 45 are allowed
-			Dim spdiffx100 As Float = 6000 * (Angle - downAngle) / (3 * Pi / 2)
-			NewSpeedLimitx100 = downSpeedLimitx100 + spdiffx100
-			' Draw the spot as a speed limit sign
-			ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
-			DrawSpeedDial(pnlSpeed, cvsSpeed)
-			DrawSpeedLimitSpot(pnlSpeed, cvsSpeed, True)
-			cvsSpeed.Invalidate
-
+			If Abs(X - DownX) > 10 Or Abs(Y - DownY) > 10 Then
+				' You move, you lose. Disable the timer
+				longPressed = False
+				LongPressTimer.Enabled = False
+				Log("Moved" & X & Y)
+			End If
 		Case pnlSpeed.ACTION_UP
-			' Send in the new speed limit
-			' Write the characteristic. Only the new limit field is taken notice of.
-			Dim b(2) As Byte
-			Log("New speed limitx100 " & NewSpeedLimitx100)
-			b(0) = Bit.And(NewSpeedLimitx100, 0xFF)
-			b(1) = Bit.And(Bit.ShiftRight(NewSpeedLimitx100, 8), 0xFF)
-			Log("Writing " & bc.HexFromBytes(b) & " to " & settingsService & " " & settingsChar)
-			Starter.manager.WriteData(settingsService, settingsChar, b)
-			' Redraw the original spot
-			' If value has changed, the gray spot will show until the confirming packet is received
-			ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
-			DrawSpeedDial(pnlSpeed, cvsSpeed)
-			DrawSpeedLimitSpot(pnlSpeed, cvsSpeed, False)
-			cvsSpeed.Invalidate
+			' If timer has gone off and we're still pressing the button,
+			' display the semi-transparent overlay and speed limit menu
+			If longPressed Then
+				Log("Up")
+				longPressed = False
+				pnlOverlay.Visible = True
+				pnlOverlay.Enabled = True
+			End If
 	End Select
 End Sub
-#end if
+
+Private Sub LongPressTimer_Tick
+	longPressed = True
+End Sub
+
+' Touching the background overlay cancels the menu without change.
+Private Sub pnlOverlay_Touch(Action As Int, X As Float, Y As Float)
+	Select Action
+		Case pnlSpeed.ACTION_UP
+			pnlOverlay.Visible = False
+			pnlOverlay.Enabled = False
+			NewSpeedLimitx100 = SpeedLimitx100
+	End Select
+End Sub
