@@ -34,13 +34,20 @@ int testmode_poll(void)
     display.max_speed = 30 * 10;
     display.trip = 20 * 10;
 
+    settings.limit = 25 * 100;
     settings.wheel_size = 29 << 4;
     settings.circ = 2312;
+#if 0    
     if (settings.new_limit != settings.limit)
     {
-      // simulate confirmation packet from motor with new limit changed
+      // simulate confirmation packet from motor with new limit, etc. changed
       settings.limit = settings.new_limit;
     }
+    if (settings.new_wheel != settings.wheel_size)
+      settings.wheel_size = settings.new_wheel;
+    if (settings.new_circ != settings.circ)
+      settings.circ = settings.new_circ;
+#endif
 
     // recompute the derived values
     motor.power = ((long)motor.volts * motor.amps) / 10000L;

@@ -144,19 +144,33 @@ void fillMS()
 #define READMS_INTERVAL 300
 static uint32_t last_readMS_time = 0;
 // Read the motor settings characteristic to see if an external
-// (central) device has written a new speed limit
-void readMS()
+// (central) device has written a new speed limit, circumference
+// or wheel size. Return true if anything has changed.
+bool readMS()
 {
   uint32_t time_now = millis();
+  bool rc = false;
+
   if (time_now > last_readMS_time + READMS_INTERVAL)
   {
     last_readMS_time = time_now;
-    gatt.getChar(motorSettingsWrite, bleBuffer, 2);
+    
+    gatt.getChar(motorSettingsWrite, bleBuffer, 6);
     settings.new_limit = bleBuffer[0] + ((uint16_t)bleBuffer[1] << 8);
+    settings.new_circ = bleBuffer[2] + ((uint16_t)bleBuffer[3] << 8);
+    settings.new_wheel = bleBuffer[4] + ((uint16_t)bleBuffer[5] << 8);
+
+    if (settings.new_limit != settings.limit)
+      rc = true;
+    if (settings.new_circ != settings.circ)
+      rc = true;
+    if (settings.new_wheel != settings.wheel_size)
+      rc = true;
   }
+  return rc;
 }
 
-// Update old values and send CP and MS to BLE client
+// Update old values and send CP and MS to BLE central
 void update_chars()
 {
   // Update old values 
@@ -276,7 +290,7 @@ void setup()
   motorSettingsRead = 
     gatt.addCharacteristic(0xFFF2, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 6, 6, BLE_DATATYPE_BYTEARRAY);
   motorSettingsWrite = 
-    gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_WRITE, 2, 2, BLE_DATATYPE_BYTEARRAY);
+    gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_WRITE, 6, 6, BLE_DATATYPE_BYTEARRAY);
   motorResettableTrip =
     gatt.addCharacteristic(0xFFF4, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 8, 8, BLE_DATATYPE_BYTEARRAY);
 
@@ -400,16 +414,18 @@ void loop()
       connected = 1;
 
       // Check if any updateable characteristics have been written to.
-      // There is a timer to stop reads flooding bluetooth
-      readMS();
-      if (settings.new_limit != settings.limit)
+      // There is a timer to stop reads flooding bluetooth.
+      // If anything changed, we send a new speed limit packet down the
+      // CAN bus to the motor.
+      if (readMS())
       {
-        Serial.print("New limit ");
-        Serial.println(settings.new_limit);
-        // Stop repeated setting of speed limit. If setting doen't stick, the next
+        Serial.println("New settings received");
+        // Stop repeated setting of speed limit, etc. If setting doen't stick, the next
         // bus scan will trigger it again
         settings.limit = settings.new_limit;
-        send_speed_limit(mcp, settings.new_limit / 100);
+        settings.circ = settings.new_circ;
+        settings.wheel_size = settings.new_wheel;
+        send_settings(mcp);
       }
 
       // Check if wheel or crank intervals have expired; increment their

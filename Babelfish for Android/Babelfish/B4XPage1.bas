@@ -7,7 +7,8 @@ Version=8.5
 Sub Class_Globals
 	Private Root As B4XView 'ignore
 	Private xui As XUI 'ignore
-	
+
+	Private Page2 As B4XPage2	
 	Private bgndColor As Int
 	Private borderColor As Int
 	Private textColor As Int
@@ -29,6 +30,8 @@ Sub Class_Globals
 	Private pnlWheelSize As Panel
 	Private pnlCirc As Panel
 	Private pnlNewLimit As Panel
+	Private pnlNewWheelSize As Panel
+	Private pnlNewCirc As Panel
 	Private pnlOdo As Panel
 	
 	Private bc As ByteConverter
@@ -56,6 +59,8 @@ Sub Class_Globals
 	Private WheelCirc As Int
 	Private WheelSizex10 As Int
 	Private NewSpeedLimitx100 As Int
+	Private NewWheelCirc As Int
+	Private NewWheelSizex10 As Int
 	Private packetsSeen As Boolean
 	Private settingsService As String
 	Private settingsChar As String
@@ -64,7 +69,6 @@ Sub Class_Globals
 	Private DownX, DownY As Float
 	Private longPressed As Boolean
 	Private LongPressTimer As Timer
-	Private pnlOverlay As B4XView
 End Sub
 
 'You can add more parameters here.
@@ -99,9 +103,6 @@ Private Sub B4XPage_Appear
 	' Set background panel to the background color
 	' (the action bar is taken care of in the manifest)
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
-	' Hide the menu away
-	pnlOverlay.Visible = False
-	pnlOverlay.Enabled = False
 
 	' Go through the list of services and find out what we are connected to.
 	' 0 = no relevant services (we just bail)
@@ -179,6 +180,9 @@ Private Sub B4XPage_Appear
 		DrawNumberPanel(pnlCirc, "Circ", "mm", False)
 
 		DrawNumberPanel(pnlNewLimit, "NewLm", "km/h", False)
+		DrawNumberPanel(pnlNewWheelSize, "NewSz", "in", False)
+		DrawNumberPanel(pnlNewCirc, "NewCr", "mm", False)
+		
 		DrawNumberPanel(pnlOdo, "Odo", "km", False)
 
 	Else if ConnectedDeviceType == 2 Then
@@ -201,6 +205,8 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlWheelSize)
 		DrawNumberPanelBlank(pnlCirc)
 		DrawNumberPanelBlank(pnlNewLimit)
+		DrawNumberPanelBlank(pnlNewWheelSize)
+		DrawNumberPanelBlank(pnlNewCirc)
 		DrawNumberPanelBlank(pnlOdo)
 
 
@@ -226,6 +232,8 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlWheelSize)
 		DrawNumberPanelBlank(pnlCirc)
 		DrawNumberPanelBlank(pnlNewLimit)
+		DrawNumberPanelBlank(pnlNewWheelSize)
+		DrawNumberPanelBlank(pnlNewCirc)
 		DrawNumberPanelBlank(pnlOdo)
 
 	Else
@@ -318,11 +326,15 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				If Not(packetsSeen) Then
 					NewSpeedLimitx100 = SpeedLimitx100
 					DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
+					NewWheelCirc = WheelCirc
+					DrawNumberPanelValue(pnlNewCirc, NewWheelCirc, 1, 0, "")
+					NewWheelSizex10 = WheelSizex10
+					DrawNumberPanelValue(pnlNewWheelSize, NewWheelSizex10, 10, 0, "")
 				End If
 				packetsSeen = True
 
 			else If id.ToLowerCase.StartsWith("0000fff3") Then
-				' Writable new speed limit. Remember the service and char ID's for later writing
+				' Writable new settings. Remember the service and char ID's for later writing
 				settingsService = ServiceId
 				settingsChar = id
 
@@ -656,7 +668,7 @@ Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 			LongPressTimer.Enabled = True
 			Log("Down" & X & Y)
 		Case pnlSpeed.ACTION_MOVE
-			If Abs(X - DownX) > 10 Or Abs(Y - DownY) > 10 Then
+			If Abs(X - DownX) > 20 Or Abs(Y - DownY) > 20 Then
 				' You move, you lose. Disable the timer
 				longPressed = False
 				LongPressTimer.Enabled = False
@@ -664,12 +676,17 @@ Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 			End If
 		Case pnlSpeed.ACTION_UP
 			' If timer has gone off and we're still pressing the button,
-			' display the semi-transparent overlay and speed limit menu
+			' display the settings menu
 			If longPressed Then
 				Log("Up")
 				longPressed = False
-				pnlOverlay.Visible = True
-				pnlOverlay.Enabled = True
+				
+				' TODO put up a new page here 
+				' Make sure the speed limit, etc. data is valid (strengthen the PacketsSeen logic)
+				B4XPages.ShowPage("Page 2")
+
+				
+				
 			End If
 	End Select
 End Sub
@@ -678,12 +695,17 @@ Private Sub LongPressTimer_Tick
 	longPressed = True
 End Sub
 
+' TODO make this the callback for the menu page
+#if 0
 ' Touching the background overlay cancels the menu without change.
-Private Sub pnlOverlay_Touch(Action As Int, X As Float, Y As Float)
+Sub pnlOverlay_Touch(Action As Int, X As Float, Y As Float)
 	Select Action
 		Case pnlSpeed.ACTION_UP
 			pnlOverlay.Visible = False
 			pnlOverlay.Enabled = False
 			NewSpeedLimitx100 = SpeedLimitx100
+			NewWheelCirc = WheelCirc
+			NewWheelSizex10 = WheelSizex10
 	End Select
 End Sub
+#end if

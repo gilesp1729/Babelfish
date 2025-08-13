@@ -546,3 +546,35 @@ void send_circumference(Adafruit_MCP2515 mcp, int circum)
     mcp.write(data[i]);
   mcp.endPacket();
 }
+
+// Send a speed limit/wheel size/circumference packet from the
+// new settings (received from connected central)
+void send_settings(Adafruit_MCP2515 mcp)
+{
+  uint8_t data[8];
+  int i;
+
+  data[0] = settings.new_limit & 0xFF;
+  data[1] = (settings.new_limit >> 8) & 0xFF;
+  data[2] = settings.new_wheel & 0xFF; 
+  data[3] = (settings.new_wheel >> 8) & 0xFF;
+  data[4] = settings.new_circ & 0xFF;
+  data[5] = (settings.new_circ >> 8) & 0xFF;
+
+  // DEBUG: Write out the packet to serial in hex.
+  for (i = 0; i < 6; i++)
+  {
+    if (data[i] < 0x10)
+      Serial.print(F("0"));
+    Serial.print(data[i], HEX);
+    Serial.print(F(" "));
+  }
+  Serial.println();
+
+#if 0 // Nobble this for testing
+  mcp.beginExtendedPacket(0x05103203);
+  for (i = 0; i < 6; i++)
+    mcp.write(data[i]);
+  mcp.endPacket();
+#endif
+}

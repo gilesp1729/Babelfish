@@ -1,8 +1,10 @@
 ﻿Build1=Default,b4a.Babelfish
 File1=MainPage.bal
 File2=Page1.bal
+File3=Page2.bal
 FileGroup1=Default Group
 FileGroup2=Default Group
+FileGroup3=Default Group
 Group=Default Group
 Library1=b4xpages
 Library2=ble2
@@ -16,10 +18,11 @@ Library9=bctoast
 ManifestCode='This code will be applied to the manifest file during compilation.~\n~'You do not need to modify it in most cases.~\n~'See this link for for more information: https://www.b4x.com/forum/showthread.php?p=78136~\n~AddManifestText(~\n~<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34"/>~\n~<supports-screens android:largeScreens="true" ~\n~    android:normalScreens="true" ~\n~    android:smallScreens="true" ~\n~    android:anyDensity="true"/>)~\n~SetApplicationAttribute(android:icon, "@drawable/icon")~\n~SetApplicationAttribute(android:label, "$LABEL$")~\n~CreateResourceFromFile(Macro, Themes.LightTheme)~\n~'End of default text.~\n~AddPermission(android.permission.ACCESS_FINE_LOCATION)~\n~AddPermission(android.permission.BLUETOOTH_SCAN)~\n~AddPermission(android.permission.BLUETOOTH_CONNECT)~\n~AddPermission(android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE)~\n~SetServiceAttribute(Main, android:foregroundServiceType, "connectedDevice")~\n~AddPermission(android.permission.WAKE_LOCK)~\n~~\n~' Black magic to set action bar colours. These should agree with~\n~' the colours in starter.bas.~\n~SetApplicationAttribute(android:theme, "@style/LightTheme")~\n~CreateResource(values, colors.xml,~\n~<resources>~\n~    <color name="actionbar">#ff000000</color>~\n~	<color name="statusbar">#ff000000</color>~\n~	<color name="textColorPrimary">#ffffffBf</color>~\n~	<color name="navigationBar">#ff000000</color>~\n~</resources>~\n~)~\n~CreateResource(values-v20, theme.xml,~\n~<resources>~\n~    <style name="LightTheme" parent="@android:style/Theme.Material.Light">~\n~		 <item name="android:colorPrimary">@color/actionbar</item>~\n~		 <item name="android:colorPrimaryDark">@color/statusbar</item>~\n~		 <item name="android:textColorPrimary">@color/textColorPrimary</item>~\n~		 <item name="android:navigationBarColor">@color/navigationBar</item>~\n~    </style>~\n~</resources>~\n~)~\n~CreateResource(values-v14, theme.xml,~\n~<resources>~\n~    <style name="LightTheme" parent="@android:style/Theme.Holo.Light">~\n~		<item name="android:actionBarStyle">@style/CustomActionBarStyle</item>~\n~    </style>~\n~	<style name="CustomActionBarStyle" parent="@android:style/Widget.Holo.Light.ActionBar.Solid.Inverse">~\n~	    <item name="android:background">@color/actionbar</item>~\n~	</style>~\n~</resources>~\n~)~\n~
 Module1=|relative|..\B4XMainPage
 Module2=|relative|..\B4XPage1
-Module3=Starter
-NumberOfFiles=2
+Module3=B4XPage2
+Module4=Starter
+NumberOfFiles=3
 NumberOfLibraries=9
-NumberOfModules=3
+NumberOfModules=4
 Version=13.1
 @EndOfDesignText@
 #Region  Project Attributes 

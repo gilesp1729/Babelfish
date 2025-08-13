@@ -42,6 +42,8 @@ typedef struct Settings
   uint16_t wheel_size;      // wheel size in 12.4 (decimal fraction part in low nibble)
   uint16_t circ;            // wheel circumference in mm
   uint16_t new_limit;       // Speed limit set by outside writer, in km/h*100
+  uint16_t new_wheel;       // Wheel size set similarly, in 12.4
+  uint16_t new_circ;        // Circumference set similarly, in mm
 };
 
 // Motor controller readings, derived values, display values, and settings
@@ -70,6 +72,9 @@ void send_speed_limit(Adafruit_MCP2515 mcp, int speed);
 
 // Set wheel circumference
 void send_circumference(Adafruit_MCP2515 mcp, int circum);
+
+// Set all settings
+void send_settings(Adafruit_MCP2515 mcp);
 
 // Test mode for BLE characteristics. If no packets are received,
 // Babelfish (optionally) generates synthetic speed/cadence/power/etc. data.

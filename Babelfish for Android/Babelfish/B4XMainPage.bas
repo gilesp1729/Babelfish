@@ -16,6 +16,7 @@ Sub Class_Globals
 	Private xui As XUI
 	
 	Private Page1 As B4XPage1
+	Private Page2 As B4XPage2
 	
 	Private ConnectedName As String
 	Private ConnectedId As String
@@ -57,7 +58,9 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	ToastMessage.Initialize(Root)
 	
 	Page1.Initialize	'initializes Page1
+	Page2.Initialize	'initializes Page2
 	B4XPages.AddPage("Page 1", Page1)	'adds Page1 to the B4XPages list
+	B4XPages.AddPage("Page 2", Page2)	'adds Page2 to the B4XPages list
 
 	bgndColor = Starter.bgndColor
 	borderColor = Starter.borderColor
