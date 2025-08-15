@@ -8,7 +8,6 @@ Sub Class_Globals
 	Private Root As B4XView 'ignore
 	Private xui As XUI 'ignore
 
-	Private Page2 As B4XPage2	
 	Private bgndColor As Int
 	Private borderColor As Int
 	Private textColor As Int
@@ -666,19 +665,19 @@ Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 			DownY = Y
 			longPressed = False
 			LongPressTimer.Enabled = True
-			Log("Down" & X & Y)
+			'Log("Down" & X & Y)
 		Case pnlSpeed.ACTION_MOVE
 			If Abs(X - DownX) > 20 Or Abs(Y - DownY) > 20 Then
 				' You move, you lose. Disable the timer
 				longPressed = False
 				LongPressTimer.Enabled = False
-				Log("Moved" & X & Y)
+				'Log("Moved" & X & Y)
 			End If
 		Case pnlSpeed.ACTION_UP
 			' If timer has gone off and we're still pressing the button,
 			' display the settings menu
 			If longPressed Then
-				Log("Up")
+				'Log("Up")
 				longPressed = False
 				
 				' TODO put up a new page here 

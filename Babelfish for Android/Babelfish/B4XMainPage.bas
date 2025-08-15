@@ -32,6 +32,7 @@ Sub Class_Globals
 	Private bgndColor As Int
 	Private borderColor As Int
 	Private textColor As Int
+	Private pnlBackground As B4XView
 	
 #if B4A
 	Private rp As RuntimePermissions
@@ -81,6 +82,7 @@ End Sub
 'Display Page1
 
 Private Sub B4XPage_Appear
+	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
 	If Connected Then
 		' when coming back from Page1, disconnect any connected peripheral
 		Starter.manager.Disconnect
@@ -156,7 +158,7 @@ Sub Manager_DeviceFound (Name As String, Id As String, AdvertisingData As Map, R
 	' from the list view item. Set the colours.
 	Dim p = clv.GetRawListItem(clv.Size - 1).Panel.GetView(0) As B4XView
 	Dim t As B4XView = p.GetView(0)
-	p.SetColorAndBorder(bgndColor, 2dip, borderColor, 0)
+	p.SetColorAndBorder(bgndColor, 4dip, 0x00000000, 0)
 	t.TextColor = textColor
 	pbWait.Hide
 	ScanTimer.Enabled = False
