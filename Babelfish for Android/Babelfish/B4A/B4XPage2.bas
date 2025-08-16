@@ -59,7 +59,7 @@ Private Sub B4XPage_Appear
 		SpeedLimits.AddTextItem("  " & i.As(String) & "km/h", i * 100)
 		Dim p = SpeedLimits.GetRawListItem(SpeedLimits.Size - 1).Panel.GetView(0) As B4XView
 		Dim t As B4XView = p.GetView(0)
-		p.SetColorAndBorder(bgndColor, 4dip, 0x00000000, 0)
+		'p.SetColorAndBorder(bgndColor, 4dip, 0x00000000, 0)
 		t.TextColor = textColor
 	Next
 	
@@ -81,6 +81,9 @@ Private Sub B4XPage_Appear
 		End If
 		'Log("in inches " & inch)
 		WheelSizes.Add(pn, float_to_124(inch))
+		
+		'Exit
+		
 	Next
 
 End Sub
@@ -94,13 +97,24 @@ End Sub
 Private Sub FillWheelItem(row() As String) As Panel
 	Dim pn As Panel
 	pn.Initialize("")
-	pn.SetLayoutAnimated(0, 0dip, 0dip, 320dip,40dip)  ' TODO This is messing up the border.
-	pn.LoadLayout("wheelitem_layout")
+	pn.SetLayout(10, 0, 300dip, 40dip) 
+	
+	lblWheelInch.Initialize("")
+	lblWheelInch.Gravity = Gravity.CENTER_VERTICAL
+	lblWheelInch.Padding = Array As Int(10dip, 0, 0, 0)
+	pn.AddView(lblWheelInch, 0, 0, 180dip, 40dip)
+	lblWheelISO.Initialize("")
+	lblWheelISO.Gravity = Gravity.CENTER_VERTICAL
+	pn.AddView(lblWheelISO, 180dip, 0, 60dip, 40dip)
+	lblWheelCirc.Initialize("")
+	'lblWheelCirc.Padding = Array As Int(0, 0, 10dip, 0)
+	lblWheelCirc.Gravity = Bit.Or(Gravity.RIGHT, Gravity.CENTER_VERTICAL)
+	pn.AddView(lblWheelCirc, 240dip, 0, 60dip, 40dip)
+
 	lblWheelInch.text = row(0)
 	lblWheelISO.Text = row(1)
 	lblWheelCirc.Text = row(2)
 	
-	pn.As(B4XView).SetColorAndBorder(bgndColor, 4dip, 0x00000000, 0)
 	lblWheelInch.As(B4XView).TextColor = textColor
 	lblWheelISO.As(B4XView).TextColor = textColor
 	lblWheelCirc.As(B4XView).TextColor = textColor
@@ -133,3 +147,10 @@ Private Sub string_to_float(str As String) As Float
 	Return str.SubString2(0, last).As(Float)
 End Sub
 
+Sub SpeedLimits_ItemClick(Index As Int, Value As Object)
+
+End Sub
+	
+Sub Wheelsizes_ItemClick(Index As Int, Value As Object)
+	
+End Sub
