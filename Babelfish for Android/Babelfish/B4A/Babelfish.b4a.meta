@@ -16,6 +16,6 @@ ModuleClosedNodes2=
 ModuleClosedNodes3=
 ModuleClosedNodes4=
 ModuleClosedNodes5=
-NavigationStack=Visual Designer,Page2.bal,-100,6,B4XPage2,B4XPage_Disappear,86,0,B4XPage2,B4XPage_Appear,77,6,Starter,Process_Globals,19,6,B4XPage2,FillWheelItem,95,6,B4XMainPage,Manager_DeviceFound,157,0,B4XMainPage,clv_ItemClick,176,0,B4XPage2,string_to_float,145,0,B4XPage2,SpeedLimits_ItemClick,147,0,B4XPage2,Wheelsizes_ItemClick,149,0
+NavigationStack=B4XPage2,string_to_float,146,0,B4XPage2,SpeedLimits_ItemClick,153,6,B4XPage2,Class_Globals,19,6,B4XPage1,Class_Globals,53,0,B4XPage1,AvailCallback,319,0,B4XPage1,LongPressTimer_Tick,698,0,B4XPage1,DrawSpeedLimitSpot,639,0,B4XPage1,pnlSpeed_Touch,679,0,B4XPage2,WheelSizes_ItemClick,163,6,B4XPage2,B4XPage_Appear,83,6
 SelectedBuild=0
 VisibleModules=1,2,3,5,4

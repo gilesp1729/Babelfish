@@ -683,9 +683,6 @@ Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 				' TODO put up a new page here 
 				' Make sure the speed limit, etc. data is valid (strengthen the PacketsSeen logic)
 				B4XPages.ShowPage("Page 2")
-
-				
-				
 			End If
 	End Select
 End Sub

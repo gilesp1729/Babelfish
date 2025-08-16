@@ -23,6 +23,7 @@ Sub Class_Globals
 	Private SpeedLimits As CustomListView
 	Private lblSpeedLimit As Label
 
+	Private new_limit, new_wheel, new_circ As Int
 End Sub
 
 'You can add more parameters here.
@@ -80,10 +81,12 @@ Private Sub B4XPage_Appear
 			inch = inch / 25.4
 		End If
 		'Log("in inches " & inch)
-		WheelSizes.Add(pn, float_to_124(inch))
 		
-		'Exit
-		
+		' Each row stores the wheelsize in 12.4 and the circ in mm
+		Dim val(2) As Int
+		val(0) = float_to_124(inch)
+		val(1) = row(2).As(Int)
+		WheelSizes.Add(pn, val)
 	Next
 
 End Sub
@@ -147,10 +150,15 @@ Private Sub string_to_float(str As String) As Float
 	Return str.SubString2(0, last).As(Float)
 End Sub
 
-Sub SpeedLimits_ItemClick(Index As Int, Value As Object)
-
+Sub SpeedLimits_ItemClick(Index As Int, Value As Int)
+	Log("Speed limit " & Value)
+	new_limit = Value
 End Sub
 	
-Sub Wheelsizes_ItemClick(Index As Int, Value As Object)
-	
+'Sub WheelSizes_ItemClick(Index As Int, Value As Object)
+Sub WheelSizes_ItemClick(Index As Int, Value() As Int)
+	Log("Wheel size " & Value(0))
+	Log("Circumference " & Value(1))
+	new_wheel = Value(0)
+	new_circ = Value(1)
 End Sub
