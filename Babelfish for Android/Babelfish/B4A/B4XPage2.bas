@@ -23,7 +23,7 @@ Sub Class_Globals
 	Private SpeedLimits As CustomListView
 	Private lblSpeedLimit As Label
 
-	Private new_limit, new_wheel, new_circ As Int
+	Public sel_limit, sel_wheel, sel_circ As Int
 End Sub
 
 'You can add more parameters here.
@@ -60,8 +60,13 @@ Private Sub B4XPage_Appear
 		SpeedLimits.AddTextItem("  " & i.As(String) & "km/h", i * 100)
 		Dim p = SpeedLimits.GetRawListItem(SpeedLimits.Size - 1).Panel.GetView(0) As B4XView
 		Dim t As B4XView = p.GetView(0)
-		'p.SetColorAndBorder(bgndColor, 4dip, 0x00000000, 0)
-		t.TextColor = textColor
+		If sel_limit == i * 100 Then	' Highlight the currently selected speed limit
+			p.SetColorAndBorder(textColor, 4dip, 0x00000000, 0)
+			t.TextColor = bgndColor
+		Else
+			p.SetColorAndBorder(bgndColor, 4dip, 0x00000000, 0)
+			t.TextColor = textColor
+		End If
 	Next
 	
 	' The wheel size/circ items have their values derived.
@@ -69,6 +74,9 @@ Private Sub B4XPage_Appear
 	' expressed in the usual 12.4 form (decimal bottom 4 bits)
 	' The circumference comes directly from the third item.
 	WheelSizes.Clear
+	Dim diff_circ As Int
+	Dim closest_index As Int = 0
+	Dim closest_circ As Int = 10000
 	lblWheelSizeAndCirc.As(B4XView).TextColor = textColor
 	For Each row() As String In WheelTable
 		'Log(row(0))		' inch size
@@ -87,8 +95,25 @@ Private Sub B4XPage_Appear
 		val(0) = float_to_124(inch)
 		val(1) = row(2).As(Int)
 		WheelSizes.Add(pn, val)
+		
+		' Determine the closest match in circumference, which is also
+		' an exact match in wheel size.
+		If val(0) == sel_wheel Then
+			diff_circ = Abs(val(1) - sel_circ)
+			If diff_circ < closest_circ Then
+				closest_circ = diff_circ
+				closest_index = WheelSizes.Size - 1
+			End If
+		End If
 	Next
-
+	
+	' Highlight the closest match
+	p = WheelSizes.GetRawListItem(closest_index).Panel.GetView(0)
+	p.SetColorAndBorder(textColor, 4dip, 0x00000000, 0)
+	p.GetView(0).TextColor = bgndColor
+	p.GetView(1).TextColor = bgndColor
+	p.GetView(2).TextColor = bgndColor
+	
 End Sub
 
 Private Sub B4XPage_Disappear
@@ -100,7 +125,7 @@ End Sub
 Private Sub FillWheelItem(row() As String) As Panel
 	Dim pn As Panel
 	pn.Initialize("")
-	pn.SetLayout(10, 0, 300dip, 40dip) 
+	pn.SetLayout(0, 0, 300dip, 40dip) 
 	
 	lblWheelInch.Initialize("")
 	lblWheelInch.Gravity = Gravity.CENTER_VERTICAL
@@ -110,7 +135,6 @@ Private Sub FillWheelItem(row() As String) As Panel
 	lblWheelISO.Gravity = Gravity.CENTER_VERTICAL
 	pn.AddView(lblWheelISO, 180dip, 0, 60dip, 40dip)
 	lblWheelCirc.Initialize("")
-	'lblWheelCirc.Padding = Array As Int(0, 0, 10dip, 0)
 	lblWheelCirc.Gravity = Bit.Or(Gravity.RIGHT, Gravity.CENTER_VERTICAL)
 	pn.AddView(lblWheelCirc, 240dip, 0, 60dip, 40dip)
 
@@ -152,13 +176,24 @@ End Sub
 
 Sub SpeedLimits_ItemClick(Index As Int, Value As Int)
 	Log("Speed limit " & Value)
-	new_limit = Value
+	sel_limit = Value
+
+	' TODO highlight the sleetced
 End Sub
 	
 'Sub WheelSizes_ItemClick(Index As Int, Value As Object)
 Sub WheelSizes_ItemClick(Index As Int, Value() As Int)
 	Log("Wheel size " & Value(0))
 	Log("Circumference " & Value(1))
-	new_wheel = Value(0)
-	new_circ = Value(1)
+	sel_wheel = Value(0)
+	sel_circ = Value(1)
+	
+	' TODO highlight the sleetced
+End Sub
+
+' Save button sets Page1 variables and sends them back to the central
+Sub btnSave_Click
+	Dim Page1 As B4XPage1 = B4XPages.GetPage("Page 1")
+	Page1.WriteMotorSettings
+	B4XPages.ClosePage(Me)
 End Sub

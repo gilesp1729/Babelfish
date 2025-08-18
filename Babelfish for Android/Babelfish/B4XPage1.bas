@@ -7,6 +7,7 @@ Version=8.5
 Sub Class_Globals
 	Private Root As B4XView 'ignore
 	Private xui As XUI 'ignore
+	Private Page2 As B4XPage2
 
 	Private bgndColor As Int
 	Private borderColor As Int
@@ -56,13 +57,14 @@ Sub Class_Globals
 	' For the speed limit display and interaction on the speed dial
 	Private SpeedLimitx100 As Int
 	Private WheelCirc As Int
-	Private WheelSizex10 As Int
-	Private NewSpeedLimitx100 As Int
-	Private NewWheelCirc As Int
-	Private NewWheelSizex10 As Int
-	Private packetsSeen As Boolean
+	Private WheelSize124 As Int
+	Private packetsSeen As Boolean = False
 	Private settingsService As String
 	Private settingsChar As String
+
+	Private NewSpeedLimitx100 As Int
+	Private NewWheelCirc As Int
+	Private NewWheelSize124 As Int
 	
 	' For catching long presses and overlaying a menu
 	Private DownX, DownY As Float
@@ -111,7 +113,6 @@ Private Sub B4XPage_Appear
 	' There will generally be a Battery service along for the ride too.
 	' Collect their UUIDs here.
 	ConnectedDeviceType = 0
-	packetsSeen = False
 	Dim cscSeen = False As Boolean
 	Dim cpSeen = False As Boolean
 	Dim bfSeen = False As Boolean
@@ -320,15 +321,17 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				WheelCirc = Unsigned2(b(2), b(3))
 				DrawNumberPanelValue(pnlCirc, WheelCirc, 1, 0, "")
 				' Unscramble the 12.4 encoding of wheel size
-				WheelSizex10 = Bit.ShiftRight(Unsigned2(b(4), b(5)), 4) * 10 + Bit.And(Unsigned(b(4)), 0xF)
-				DrawNumberPanelValue(pnlWheelSize, WheelSizex10, 10, 0, "")
+				WheelSize124 = Unsigned2(b(4), b(5))
+				Dim wheelx10 As Int = Bit.ShiftRight(WheelSize124, 4) * 10 + Bit.And(WheelSize124, 0xF)
+				DrawNumberPanelValue(pnlWheelSize, wheelx10, 10, 0, "")
 				If Not(packetsSeen) Then
 					NewSpeedLimitx100 = SpeedLimitx100
 					DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
 					NewWheelCirc = WheelCirc
 					DrawNumberPanelValue(pnlNewCirc, NewWheelCirc, 1, 0, "")
-					NewWheelSizex10 = WheelSizex10
-					DrawNumberPanelValue(pnlNewWheelSize, NewWheelSizex10, 10, 0, "")
+					NewWheelSize124 = WheelSize124
+					wheelx10 = Bit.ShiftRight(NewWheelSize124, 4) * 10 + Bit.And(NewWheelSize124, 0xF)
+					DrawNumberPanelValue(pnlNewWheelSize, wheelx10, 10, 0, "")
 				End If
 				packetsSeen = True
 
@@ -667,11 +670,16 @@ Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 			LongPressTimer.Enabled = True
 			'Log("Down" & X & Y)
 		Case pnlSpeed.ACTION_MOVE
-			If Abs(X - DownX) > 20 Or Abs(Y - DownY) > 20 Then
+			If Abs(X - DownX) > 30 Or Abs(Y - DownY) > 30 Then
 				' You move, you lose. Disable the timer
 				longPressed = False
 				LongPressTimer.Enabled = False
 				'Log("Moved" & X & Y)
+				
+				' reset timer and start again
+				LongPressTimer.Enabled = True
+				DownX = X
+				DownY = Y
 			End If
 		Case pnlSpeed.ACTION_UP
 			' If timer has gone off and we're still pressing the button,
@@ -679,9 +687,14 @@ Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 			If longPressed Then
 				'Log("Up")
 				longPressed = False
-				
-				' TODO put up a new page here 
-				' Make sure the speed limit, etc. data is valid (strengthen the PacketsSeen logic)
+
+				' Set the selections in Page 2 view lists
+				' TODO Can I do this before Page 2 is displayed?
+				' TODO Make sure the speed limit, etc. data is valid (strengthen the PacketsSeen logic)
+				Page2 = B4XPages.GetPage("Page 2")
+				Page2.sel_limit = SpeedLimitx100
+				Page2.sel_wheel = WheelSize124
+				Page2.sel_circ = WheelCirc
 				B4XPages.ShowPage("Page 2")
 			End If
 	End Select
@@ -689,19 +702,29 @@ End Sub
 
 Private Sub LongPressTimer_Tick
 	longPressed = True
+	
+	' Draw blue circle under finger
+	' This doesn't work - it stays on screen when coming back?
+	'cvsSpeed.DrawCircle(DownX, DownY, 50dip, 0xFF7EB4FA, True, 0)
+	'cvsSpeed.Invalidate
 End Sub
 
-' TODO make this the callback for the menu page
-#if 0
-' Touching the background overlay cancels the menu without change.
-Sub pnlOverlay_Touch(Action As Int, X As Float, Y As Float)
-	Select Action
-		Case pnlSpeed.ACTION_UP
-			pnlOverlay.Visible = False
-			pnlOverlay.Enabled = False
-			NewSpeedLimitx100 = SpeedLimitx100
-			NewWheelCirc = WheelCirc
-			NewWheelSizex10 = WheelSizex10
-	End Select
+' Called from Page 2 to save selected settings and write them to the central.
+Public Sub WriteMotorSettings
+	Dim b(6) As Byte
+	
+	NewSpeedLimitx100 = Page2.sel_limit
+	NewWheelSize124 = Page2.sel_wheel
+	NewWheelCirc = Page2.sel_circ
+	
+	b(0) = Bit.And(NewSpeedLimitx100, 0xFF)
+	b(1) = Bit.And(Bit.ShiftRight(NewSpeedLimitx100, 8), 0xFF)
+	b(2) = Bit.And(NewWheelCirc, 0xFF)
+	b(3) = Bit.And(Bit.ShiftRight(NewWheelCirc, 8), 0xFF)
+	b(4) = Bit.And(NewWheelSize124, 0xFF)
+	b(5) = Bit.And(Bit.ShiftRight(NewWheelSize124, 8), 0xFF)
+	
+	Log("Writing " & bc.HexFromBytes(b) & " to " & settingsService & " " & settingsChar)
+	Starter.manager.WriteData(settingsService, settingsChar, b)
+	
 End Sub
-#end if
