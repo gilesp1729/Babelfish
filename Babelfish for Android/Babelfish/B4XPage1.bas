@@ -85,7 +85,7 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	Log("Page Create")
 	Root = Root1
 	Root.LoadLayout("Page1")
-	UpdateTimer.Initialize("UpdateTimer", 5000)
+	UpdateTimer.Initialize("UpdateTimer", 500)
 	LongPressTimer.Initialize("LongPressTimer", 1500)
 	
 	bgndColor = Starter.bgndColor
@@ -326,14 +326,14 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 					' Unscramble the 12.4 encoding of wheel size
 					WheelSize124 = Unsigned2(b(4), b(5))
 					Dim wheelx10 As Int = Bit.ShiftRight(WheelSize124, 4) * 10 + Bit.And(WheelSize124, 0xF)
-					DrawNumberPanelValue(pnlWheelSize, wheelx10, 10, 0, "")
+					DrawNumberPanelValue(pnlWheelSize, wheelx10, 10, 1, "")
 				End If
 									
 				If NewSettingsValid Then
 					DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
 					DrawNumberPanelValue(pnlNewCirc, NewWheelCirc, 1, 0, "")
 					wheelx10 = Bit.ShiftRight(NewWheelSize124, 4) * 10 + Bit.And(NewWheelSize124, 0xF)
-					DrawNumberPanelValue(pnlNewWheelSize, wheelx10, 10, 0, "")
+					DrawNumberPanelValue(pnlNewWheelSize, wheelx10, 10, 1, "")
 				End If
 
 			else If id.ToLowerCase.StartsWith("0000fff3") Then
@@ -489,8 +489,8 @@ Sub DrawNumberPanelValue(pan As B4XView, Value As Int, Div As Int, Decpl As Int,
 	Dim fval As Float = Value / Div
 	' Divide by the division factor (e.g. 10 or 100) before displaying.
 	' Format the fval with Decpl places. Append any optional string.
-	V.Text = NumberFormat(fval, 1, Decpl) & Append
-	' TODO Optional dec pl for small numbers (like speed)
+	V.Text = NumberFormat2(fval, 1, Decpl, 0, False) & Append
+	' TODO Optional dec pl for small numbers (like speed 8.5, 9.5, but 10, 20...)
 End Sub
 
 ' Draw a string in the extra field. This can be an Awesome icon.
@@ -661,13 +661,14 @@ End Sub
 ' Interactions with speed dial to display menus, etc.
 
 ' Handle touches, etc. on the speed dial. Long presses via a timer.
+' Only act on long presses if valid motor settings have been received.
 Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 	Select Action
 		Case pnlSpeed.ACTION_DOWN
 			DownX = X
 			DownY = Y
 			longPressed = False
-			LongPressTimer.Enabled = True
+			LongPressTimer.Enabled = SettingsValid
 			'Log("Down" & X & Y)
 		Case pnlSpeed.ACTION_MOVE
 			If Abs(X - DownX) > 30 Or Abs(Y - DownY) > 30 Then
@@ -677,7 +678,7 @@ Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 				'Log("Moved" & X & Y)
 				
 				' reset timer and start again
-				LongPressTimer.Enabled = True
+				LongPressTimer.Enabled = SettingsValid
 				DownX = X
 				DownY = Y
 			End If

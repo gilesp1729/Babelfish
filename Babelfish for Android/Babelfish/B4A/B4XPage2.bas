@@ -22,8 +22,11 @@ Sub Class_Globals
 
 	Private SpeedLimits As CustomListView
 	Private lblSpeedLimit As Label
+	Private SpeedIndex, WheelIndex As Int
 
 	Public sel_limit, sel_wheel, sel_circ As Int
+	
+	Private btnSave As Button
 End Sub
 
 'You can add more parameters here.
@@ -41,6 +44,17 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	borderColor = Starter.borderColor
 	textColor = Starter.textColor
 	
+#if 0	
+	' TODO test this for a save button in the action bar
+    Dim p As B4XView = xui.CreatePanel("")
+    p.SetLayoutAnimated(0, 0, 0, 200dip, 45dip)
+    Dim tf As EditText
+    tf.Initialize("")
+    p.AddView(tf, 5dip, 0, p.Width - 10dip, p.Height)
+    B4XPages.GetManager.ActionBar.RunMethod("setCustomView", Array(p))
+    B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
+#end if
+	
 	' Read wheel/tyre size information from csv file. Skip the header row.
 	' Tyre sizes from Wahoo web site
 	Dim parser As CSVParser
@@ -52,6 +66,8 @@ End Sub
 Private Sub B4XPage_Appear
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
 	B4XPages.SetTitle(Me, "Motor Settings")
+	btnSave.As(B4XView).TextColor = textColor
+	btnSave.As(B4XView).SetColorAndBorder(bgndColor, 4dip, borderColor, 0)
 
 	' The speed limit items have values hardcoded directly in km/h x 100.
 	SpeedLimits.Clear
@@ -60,12 +76,12 @@ Private Sub B4XPage_Appear
 		SpeedLimits.AddTextItem("  " & i.As(String) & "km/h", i * 100)
 		Dim p = SpeedLimits.GetRawListItem(SpeedLimits.Size - 1).Panel.GetView(0) As B4XView
 		Dim t As B4XView = p.GetView(0)
+		p.SetColorAndBorder(bgndColor, 4dip, 0x00000000, 0)
+		t.TextColor = textColor
+
 		If sel_limit == i * 100 Then	' Highlight the currently selected speed limit
-			p.SetColorAndBorder(textColor, 4dip, 0x00000000, 0)
-			t.TextColor = bgndColor
-		Else
-			p.SetColorAndBorder(bgndColor, 4dip, 0x00000000, 0)
-			t.TextColor = textColor
+			SpeedIndex = SpeedLimits.Size - 1
+			Highlight_Speed(SpeedIndex, True)
 		End If
 	Next
 	
@@ -75,8 +91,8 @@ Private Sub B4XPage_Appear
 	' The circumference comes directly from the third item.
 	WheelSizes.Clear
 	Dim diff_circ As Int
-	Dim closest_index As Int = 0
 	Dim closest_circ As Int = 10000
+	WheelIndex = 0
 	lblWheelSizeAndCirc.As(B4XView).TextColor = textColor
 	For Each row() As String In WheelTable
 		'Log(row(0))		' inch size
@@ -97,22 +113,19 @@ Private Sub B4XPage_Appear
 		WheelSizes.Add(pn, val)
 		
 		' Determine the closest match in circumference, which is also
-		' an exact match in wheel size.
+		' an exact match in wheel size. The input circumference might
+		' not be an exact match if it was set by other software (like BESST)
 		If val(0) == sel_wheel Then
 			diff_circ = Abs(val(1) - sel_circ)
 			If diff_circ < closest_circ Then
 				closest_circ = diff_circ
-				closest_index = WheelSizes.Size - 1
+				WheelIndex = WheelSizes.Size - 1
 			End If
 		End If
 	Next
 	
 	' Highlight the closest match
-	p = WheelSizes.GetRawListItem(closest_index).Panel.GetView(0)
-	p.SetColorAndBorder(textColor, 4dip, 0x00000000, 0)
-	p.GetView(0).TextColor = bgndColor
-	p.GetView(1).TextColor = bgndColor
-	p.GetView(2).TextColor = bgndColor
+	Highlight_Wheel(WheelIndex, True)
 	
 End Sub
 
@@ -150,6 +163,37 @@ Private Sub FillWheelItem(row() As String) As Panel
 
 End Sub
 
+' Highlight (or unhighlight) an item in the speed limit list.
+Sub Highlight_Speed(index As Int, highlight As Boolean)
+	Dim p = SpeedLimits.GetRawListItem(index).Panel.GetView(0) As B4XView
+	Dim t As B4XView = p.GetView(0)
+	If highlight Then
+		p.SetColorAndBorder(textColor, 4dip, 0x00000000, 0)
+		t.TextColor = bgndColor
+	Else
+		p.SetColorAndBorder(bgndColor, 4dip, 0x00000000, 0)
+		t.TextColor = textColor
+	End If
+
+End Sub
+
+' Highlight (or unhighlight) an item in the wheel size list.
+Sub Highlight_Wheel(index As Int, highlight As Boolean)
+	Dim P As B4XView
+	p = WheelSizes.GetRawListItem(index).Panel.GetView(0)
+	If highlight Then
+		p.SetColorAndBorder(textColor, 4dip, 0x00000000, 0)
+		p.GetView(0).TextColor = bgndColor
+		p.GetView(1).TextColor = bgndColor
+		p.GetView(2).TextColor = bgndColor
+	Else
+		p.SetColorAndBorder(bgndColor, 4dip, 0x00000000, 0)
+		p.GetView(0).TextColor = textColor
+		p.GetView(1).TextColor = textColor
+		p.GetView(2).TextColor = textColor
+	End If
+End Sub
+
 ' Convert a float to an int in 12.4 with decimal bottom nibble.
 ' e.g. 27.5 --> 0x1B.5 --> 0x1B5
 '        29 --> 0x1D.0 --> 0x1D0
@@ -177,8 +221,9 @@ End Sub
 Sub SpeedLimits_ItemClick(Index As Int, Value As Int)
 	Log("Speed limit " & Value)
 	sel_limit = Value
-
-	' TODO highlight the sleetced
+	Highlight_Speed(SpeedIndex, False)
+	Highlight_Speed(Index, True)
+	SpeedIndex = Index
 End Sub
 	
 'Sub WheelSizes_ItemClick(Index As Int, Value As Object)
@@ -187,8 +232,9 @@ Sub WheelSizes_ItemClick(Index As Int, Value() As Int)
 	Log("Circumference " & Value(1))
 	sel_wheel = Value(0)
 	sel_circ = Value(1)
-	
-	' TODO highlight the sleetced
+	Highlight_Wheel(WheelIndex, False)
+	Highlight_Wheel(Index, True)
+	WheelIndex = Index
 End Sub
 
 ' Save button sets Page1 variables and sends them back to the central

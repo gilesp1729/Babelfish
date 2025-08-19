@@ -16,6 +16,6 @@ ModuleClosedNodes2=
 ModuleClosedNodes3=
 ModuleClosedNodes4=
 ModuleClosedNodes5=
-NavigationStack=B4XPage1,B4XPage_Appear,109,0,B4XPage2,Class_Globals,0,0,B4XPage2,btnSave_Click,192,6,B4XMainPage,Class_Globals,23,0,B4XMainPage,Manager_DeviceFound,121,1,B4XPage1,WriteMotorSettings,723,6,B4XPage1,pnlSpeed_Touch,685,0,B4XPage1,Class_Globals,60,6,B4XPage1,AvailCallback,325,6,B4XPage1,DrawSpeedLimitSpot,648,5
+NavigationStack=CSVParser,Initialize,2,0,B4XPage1,WriteMotorSettings,705,0,B4XPage1,DrawNumberPanelValue,485,6,B4XPage1,DrawStringPanelIcon,495,0,B4XPage2,Class_Globals,0,4,B4XPage2,Initialize,42,0,B4XPage2,B4XPage_Created,49,6
 SelectedBuild=0
 VisibleModules=1,2,3,5,4

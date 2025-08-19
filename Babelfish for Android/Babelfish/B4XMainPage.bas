@@ -215,7 +215,7 @@ Sub ConnectTimer_Tick
 	ToastMessage.Show("Cannot connect to device")
 	ConnectTimer.Enabled = False
 	pbWait.Hide
-	' TODO Should this device be removed from the list?
+	' Remove device from the list
 	clv.RemoveAt(ConnectedIndex)
 End Sub
 
