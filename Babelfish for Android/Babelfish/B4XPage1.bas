@@ -58,15 +58,16 @@ Sub Class_Globals
 	Private SpeedLimitx100 As Int
 	Private WheelCirc As Int
 	Private WheelSize124 As Int
-	Private packetsSeen As Boolean = False
 	Private settingsService As String
 	Private settingsChar As String
 
 	Private NewSpeedLimitx100 As Int
 	Private NewWheelCirc As Int
 	Private NewWheelSize124 As Int
+	Private SettingsValid As Boolean = False
+	Private NewSettingsValid As Boolean = False
 	
-	' For catching long presses and overlaying a menu
+	' For catching long presses and triggering Page 2
 	Private DownX, DownY As Float
 	Private longPressed As Boolean
 	Private LongPressTimer As Timer
@@ -315,25 +316,25 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				DrawStringPanelValue(pnlPAS, PASLevels(Unsigned(b(11))))
 				
 			else If id.ToLowerCase.StartsWith("0000fff2") Then
-				' Motor settings.
-				SpeedLimitx100 = Unsigned2(b(0), b(1))
-				DrawNumberPanelValue(pnlLimit, SpeedLimitx100, 100, 0, "")
-				WheelCirc = Unsigned2(b(2), b(3))
-				DrawNumberPanelValue(pnlCirc, WheelCirc, 1, 0, "")
-				' Unscramble the 12.4 encoding of wheel size
-				WheelSize124 = Unsigned2(b(4), b(5))
-				Dim wheelx10 As Int = Bit.ShiftRight(WheelSize124, 4) * 10 + Bit.And(WheelSize124, 0xF)
-				DrawNumberPanelValue(pnlWheelSize, wheelx10, 10, 0, "")
-				If Not(packetsSeen) Then
-					NewSpeedLimitx100 = SpeedLimitx100
+				' Motor settings. Only display these (both read and written) if they have valid data.
+				If (b(6) <> 0) Then  ' valid read from peripheral
+					SettingsValid = True
+					SpeedLimitx100 = Unsigned2(b(0), b(1))
+					DrawNumberPanelValue(pnlLimit, SpeedLimitx100, 100, 0, "")
+					WheelCirc = Unsigned2(b(2), b(3))
+					DrawNumberPanelValue(pnlCirc, WheelCirc, 1, 0, "")
+					' Unscramble the 12.4 encoding of wheel size
+					WheelSize124 = Unsigned2(b(4), b(5))
+					Dim wheelx10 As Int = Bit.ShiftRight(WheelSize124, 4) * 10 + Bit.And(WheelSize124, 0xF)
+					DrawNumberPanelValue(pnlWheelSize, wheelx10, 10, 0, "")
+				End If
+									
+				If NewSettingsValid Then
 					DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
-					NewWheelCirc = WheelCirc
 					DrawNumberPanelValue(pnlNewCirc, NewWheelCirc, 1, 0, "")
-					NewWheelSize124 = WheelSize124
 					wheelx10 = Bit.ShiftRight(NewWheelSize124, 4) * 10 + Bit.And(NewWheelSize124, 0xF)
 					DrawNumberPanelValue(pnlNewWheelSize, wheelx10, 10, 0, "")
 				End If
-				packetsSeen = True
 
 			else If id.ToLowerCase.StartsWith("0000fff3") Then
 				' Writable new settings. Remember the service and char ID's for later writing
@@ -629,20 +630,11 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas)
 	Dim cx As Float = pan.Width / 2
 	Dim cy As Float = pan.Height / 2
 	Dim rad As Float = pan.Height / 2 - gap
-	If Not(packetsSeen) Then
+	If Not(SettingsValid) Then
 		Return	' no information yet
 	End If
 	
-	If SpeedLimitx100 == NewSpeedLimitx100 Then
-		' Just draw the red spot at current limit.
-		Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
-		Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
-		Dim x As Float = cx + rad * Cos(Angle)
-		Dim y As Float = cy - rad * Sin(Angle)
-		Dim r As Float = gap / 2
-		cvs.DrawCircle(x, y, r, Colors.White, True, 0)
-		cvs.DrawCircle(x, y, r, Colors.Red, False, 2dip)
-	Else
+	If NewSettingsValid And NewSpeedLimitx100 <> SpeedLimitx100 Then
 		' Draw the spot in gray at the new limit. It will be redrawn
 		' when the packet confirms the new limit has been accepted.
 		DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
@@ -652,6 +644,14 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas)
 		Dim r As Float = gap / 2
 		cvs.DrawCircle(x, y, r, Colors.LightGray, True, 0)
 		cvs.DrawCircle(x, y, r, Colors.Gray, False, 2dip)
+	Else		' Just draw the red spot at current limit.
+		Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
+		Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
+		Dim x As Float = cx + rad * Cos(Angle)
+		Dim y As Float = cy - rad * Sin(Angle)
+		Dim r As Float = gap / 2
+		cvs.DrawCircle(x, y, r, Colors.White, True, 0)
+		cvs.DrawCircle(x, y, r, Colors.Red, False, 2dip)
 	End If
 	cvs.Invalidate
 	
@@ -689,8 +689,6 @@ Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 				longPressed = False
 
 				' Set the selections in Page 2 view lists
-				' TODO Can I do this before Page 2 is displayed?
-				' TODO Make sure the speed limit, etc. data is valid (strengthen the PacketsSeen logic)
 				Page2 = B4XPages.GetPage("Page 2")
 				Page2.sel_limit = SpeedLimitx100
 				Page2.sel_wheel = WheelSize124
@@ -711,11 +709,12 @@ End Sub
 
 ' Called from Page 2 to save selected settings and write them to the central.
 Public Sub WriteMotorSettings
-	Dim b(6) As Byte
+	Dim b(7) As Byte
 	
 	NewSpeedLimitx100 = Page2.sel_limit
 	NewWheelSize124 = Page2.sel_wheel
 	NewWheelCirc = Page2.sel_circ
+	NewSettingsValid = True
 	
 	b(0) = Bit.And(NewSpeedLimitx100, 0xFF)
 	b(1) = Bit.And(Bit.ShiftRight(NewSpeedLimitx100, 8), 0xFF)
@@ -723,6 +722,7 @@ Public Sub WriteMotorSettings
 	b(3) = Bit.And(Bit.ShiftRight(NewWheelCirc, 8), 0xFF)
 	b(4) = Bit.And(NewWheelSize124, 0xFF)
 	b(5) = Bit.And(Bit.ShiftRight(NewWheelSize124, 8), 0xFF)
+	b(6) = 1  ' NewSettingsValid
 	
 	Log("Writing " & bc.HexFromBytes(b) & " to " & settingsService & " " & settingsChar)
 	Starter.manager.WriteData(settingsService, settingsChar, b)

@@ -41,9 +41,11 @@ typedef struct Settings
   uint16_t limit;           // speed limit in km/h*100
   uint16_t wheel_size;      // wheel size in 12.4 (decimal fraction part in low nibble)
   uint16_t circ;            // wheel circumference in mm
-  uint16_t new_limit;       // Speed limit set by outside writer, in km/h*100
+  uint16_t new_limit;       // Speed limit set by central (phone app), in km/h*100
   uint16_t new_wheel;       // Wheel size set similarly, in 12.4
   uint16_t new_circ;        // Circumference set similarly, in mm
+  bool     valid_read;      // True if settings have been read from the CAN bus
+  bool     valid_write;     // True if settings have been written by central over BLE
 };
 
 // Motor controller readings, derived values, display values, and settings

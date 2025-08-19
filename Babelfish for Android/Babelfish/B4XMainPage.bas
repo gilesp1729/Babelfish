@@ -27,7 +27,6 @@ Sub Class_Globals
 	Private ScanTimer As Timer
 	Private ConnectTimer As Timer
 	Private ToastMessage As BCToast
-	Private bc As ByteConverter
 	
 	Private bgndColor As Int
 	Private borderColor As Int
@@ -126,6 +125,7 @@ Private Sub btnScanAndConnect_Click
 End Sub
 
 Sub Manager_DeviceFound (Name As String, Id As String, AdvertisingData As Map, RSSI As Double)
+	' Dim bc As ByteConverter
 	Log("Found: " & Name & ", " & Id & ", RSSI = " & RSSI & ", " & AdvertisingData) 'ignore
 	
 	'' What's in the advertising data?

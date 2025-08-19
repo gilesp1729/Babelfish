@@ -127,6 +127,7 @@ void fillMS()
   bleBuffer[n++] = (settings.circ >> 8) & 0xff;
   bleBuffer[n++] = settings.wheel_size & 0xff;
   bleBuffer[n++] = (settings.wheel_size >> 8) & 0xff;
+  bleBuffer[n++] = settings.valid_read;
   gatt.setChar(motorSettingsRead, bleBuffer, n);
 
   n = 0;
@@ -155,17 +156,20 @@ bool readMS()
   {
     last_readMS_time = time_now;
     
-    gatt.getChar(motorSettingsWrite, bleBuffer, 6);
+    gatt.getChar(motorSettingsWrite, bleBuffer, 7);
     settings.new_limit = bleBuffer[0] + ((uint16_t)bleBuffer[1] << 8);
     settings.new_circ = bleBuffer[2] + ((uint16_t)bleBuffer[3] << 8);
     settings.new_wheel = bleBuffer[4] + ((uint16_t)bleBuffer[5] << 8);
-
-    if (settings.new_limit != settings.limit)
-      rc = true;
-    if (settings.new_circ != settings.circ)
-      rc = true;
-    if (settings.new_wheel != settings.wheel_size)
-      rc = true;
+    settings.valid_write = bleBuffer[6];
+    if (settings.valid_read && settings.valid_write)
+    {
+      if (settings.new_limit != settings.limit)
+        rc = true;
+      if (settings.new_circ != settings.circ)
+        rc = true;
+      if (settings.new_wheel != settings.wheel_size)
+        rc = true;
+    }
   }
   return rc;
 }
@@ -288,9 +292,9 @@ void setup()
   motorMeasurement =
     gatt.addCharacteristic(0xFFF1, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 14, 14, BLE_DATATYPE_BYTEARRAY);
   motorSettingsRead = 
-    gatt.addCharacteristic(0xFFF2, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 6, 6, BLE_DATATYPE_BYTEARRAY);
+    gatt.addCharacteristic(0xFFF2, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 7, 7, BLE_DATATYPE_BYTEARRAY);
   motorSettingsWrite = 
-    gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_WRITE, 6, 6, BLE_DATATYPE_BYTEARRAY);
+    gatt.addCharacteristic(0xFFF3, GATT_CHARS_PROPERTIES_WRITE, 7, 7, BLE_DATATYPE_BYTEARRAY);
   motorResettableTrip =
     gatt.addCharacteristic(0xFFF4, GATT_CHARS_PROPERTIES_READ | GATT_CHARS_PROPERTIES_NOTIFY, 8, 8, BLE_DATATYPE_BYTEARRAY);
 

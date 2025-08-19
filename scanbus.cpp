@@ -213,6 +213,7 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity, uint32_t only_t
         settings.limit = raw_2bytes(data[0], data[1]);
         settings.wheel_size = raw_2bytes(data[2], data[3]);
         settings.circ = raw_2bytes(data[4], data[5]);
+        settings.valid_read = true;
         break;
 
     // Messages from the display.
