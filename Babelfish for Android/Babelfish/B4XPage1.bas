@@ -33,6 +33,7 @@ Sub Class_Globals
 	Private pnlNewWheelSize As Panel
 	Private pnlNewCirc As Panel
 	Private pnlOdo As Panel
+	Private pnlClock As Panel
 	
 	Private bc As ByteConverter
 	Private cscService, cpService, bfService, batService As String
@@ -103,8 +104,9 @@ Private Sub B4XPage_Appear
 	' Draw panels for quantities to be displayed
 
 	' Set background panel to the background color
-	' (the action bar is taken care of in the manifest)
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
+	' Set action bar not to show the save button
+	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(0, 16))
 
 	' Go through the list of services and find out what we are connected to.
 	' 0 = no relevant services (we just bail)
@@ -166,6 +168,7 @@ Private Sub B4XPage_Appear
 		DrawNumberPanel(pnlPAS, "PAS", "", True)
 		DrawNumberPanel(pnlRange, "Range", "km", True)
 		DrawNumberPanel(pnlCadence, "", "rpm", True)	' Don't show "cad" as it gets in the way of the speed dial
+		DrawNumberPanel(pnlClock, "Time", "", True)
 
 		' The rest are lower down on  the page
 		DrawNumberPanel(pnlTrip, "Trip", "km", False)
@@ -188,6 +191,7 @@ Private Sub B4XPage_Appear
 
 	Else if ConnectedDeviceType == 2 Then
 		UpdateTimer.Enabled = True
+
 		' Set up for CP service
 		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
 		DrawSpeedDial(pnlSpeed, cvsSpeed)
@@ -195,6 +199,7 @@ Private Sub B4XPage_Appear
 		DrawNumberPanel(pnlBattery, "", "", True)
 		DrawNumberPanel(pnlCadence, "", "rpm", True)	' Don't show "cad" as it gets in the way of the speed dial
 		DrawNumberPanel(pnlPAS, "Power", "", True)		' Use PAS field for power to keep it neat.
+		DrawNumberPanel(pnlClock, "Time", "", True)
 		DrawNumberPanelBlank(pnlTrip)
 		DrawNumberPanelBlank(pnlMax)
 		DrawNumberPanelBlank(pnlAvg)
@@ -210,9 +215,9 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlNewCirc)
 		DrawNumberPanelBlank(pnlOdo)
 
-
 	Else If ConnectedDeviceType == 1 Then
 		UpdateTimer.Enabled = True
+
 		' Set up for CSC service. Note that cadence may not be present.
 		' This depends on some bits in a characteristic that comes with it,
 		' but we just put up the panel anyway.
@@ -221,6 +226,7 @@ Private Sub B4XPage_Appear
 
 		DrawNumberPanel(pnlBattery, "", "", True)
 		DrawNumberPanel(pnlCadence, "", "rpm", True)	' Don't show "cad" as it gets in the way of the speed dial
+		DrawNumberPanel(pnlClock, "Time", "", True)
 		DrawNumberPanelBlank(pnlTrip)
 		DrawNumberPanelBlank(pnlMax)
 		DrawNumberPanelBlank(pnlAvg)
@@ -255,6 +261,8 @@ Sub UpdateTimer_Tick
 		'Log("ReadData from " & s)
 		Starter.manager.ReadData(s)
 	Next
+	' While here, update the clock.
+	DrawStringPanelValue(pnlClock, DateTime.Time(DateTime.Now))
 End Sub
 
 ' Unsigned byte helpers
@@ -273,7 +281,6 @@ Sub Unsigned4(b0 As Byte, b1 As Byte, b2 As Byte, b3 As Byte) As Int
 	result = Bit.Or(result, Bit.ShiftLeft(Unsigned(b3), 24))
 	Return result
 End Sub
-
 
 ' Callback for DataAvailable event (caught in main page?!).
 ' This handles all characteristics for all possible services.
@@ -491,6 +498,7 @@ Sub DrawNumberPanelValue(pan As B4XView, Value As Int, Div As Int, Decpl As Int,
 	' Format the fval with Decpl places. Append any optional string.
 	V.Text = NumberFormat2(fval, 1, Decpl, 0, False) & Append
 	' TODO Optional dec pl for small numbers (like speed 8.5, 9.5, but 10, 20...)
+	' It would have to be for speed only. Not volts, amps, or wheel size.
 End Sub
 
 ' Draw a string in the extra field. This can be an Awesome icon.
@@ -711,7 +719,7 @@ End Sub
 ' Called from Page 2 to save selected settings and write them to the central.
 Public Sub WriteMotorSettings
 	Dim b(7) As Byte
-	
+
 	NewSpeedLimitx100 = Page2.sel_limit
 	NewWheelSize124 = Page2.sel_wheel
 	NewWheelCirc = Page2.sel_circ
@@ -728,4 +736,8 @@ Public Sub WriteMotorSettings
 	Log("Writing " & bc.HexFromBytes(b) & " to " & settingsService & " " & settingsChar)
 	Starter.manager.WriteData(settingsService, settingsChar, b)
 	
+End Sub
+
+' Timer to update clock field
+Private Sub ClockTimer_Tick
 End Sub

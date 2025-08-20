@@ -39,6 +39,8 @@ Sub Class_Globals
 	
 	Private pbWait As B4XLoadingIndicator
 
+	Private btnSave As Button
+
 End Sub
 
 Public Sub Initialize
@@ -65,9 +67,21 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	bgndColor = Starter.bgndColor
 	borderColor = Starter.borderColor
 	textColor = Starter.textColor
+	
+	' Put a save button in the action bar for Page 2.
+	' This must be done here (and the clicks trapped here)
+	Dim p As B4XView = xui.CreatePanel("")
+	p.SetLayoutAnimated(0, 0, 0, 150dip, 45dip)
+	btnSave.Initialize("btnSave")
+	btnSave.Text = "Save"
+	btnSave.As(B4XView).SetColorAndBorder(bgndColor, 2dip, borderColor, 4dip)
+	p.AddView(btnSave, 5dip, 0, p.Width - 10dip, p.Height)
+	B4XPages.GetManager.ActionBar.RunMethod("setCustomView", Array(p))
+	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(0, 16))	
 
+	' Set up the Scan button.
 	btnScanAndConnect.Text = "Scan for devices"
-	btnScanAndConnect.SetColorAndBorder(bgndColor, 2dip, borderColor, 0)
+	btnScanAndConnect.SetColorAndBorder(bgndColor, 2dip, borderColor, 4dip)
 	Dim b As Button = btnScanAndConnect
 	b.TextColor = textColor
 	pbWait.Hide
@@ -222,8 +236,11 @@ End Sub
 
 ' This is triggered by entering Page 1, but it has to be defined here. It that because
 ' the manager is initialised here? The mysteries of pages and scopes...
-
 Sub Manager_DataAvailable(ServiceId As String, Characteristics As Map)
 	Page1.AvailCallback(ServiceId, Characteristics)
 End Sub
 
+' Pass clicks back to Page 2 when its Save button is pressed.
+Sub btnSave_Click
+	Page2.SaveCallback
+End Sub

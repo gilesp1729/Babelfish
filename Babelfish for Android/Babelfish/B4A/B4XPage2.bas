@@ -25,8 +25,6 @@ Sub Class_Globals
 	Private SpeedIndex, WheelIndex As Int
 
 	Public sel_limit, sel_wheel, sel_circ As Int
-	
-	Private btnSave As Button
 End Sub
 
 'You can add more parameters here.
@@ -44,17 +42,6 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	borderColor = Starter.borderColor
 	textColor = Starter.textColor
 	
-#if 0	
-	' TODO test this for a save button in the action bar
-    Dim p As B4XView = xui.CreatePanel("")
-    p.SetLayoutAnimated(0, 0, 0, 200dip, 45dip)
-    Dim tf As EditText
-    tf.Initialize("")
-    p.AddView(tf, 5dip, 0, p.Width - 10dip, p.Height)
-    B4XPages.GetManager.ActionBar.RunMethod("setCustomView", Array(p))
-    B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
-#end if
-	
 	' Read wheel/tyre size information from csv file. Skip the header row.
 	' Tyre sizes from Wahoo web site
 	Dim parser As CSVParser
@@ -64,10 +51,11 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 End Sub
 
 Private Sub B4XPage_Appear
+	' make the action bar show the Save button for this page only
+	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
+	
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
 	B4XPages.SetTitle(Me, "Motor Settings")
-	btnSave.As(B4XView).TextColor = textColor
-	btnSave.As(B4XView).SetColorAndBorder(bgndColor, 4dip, borderColor, 0)
 
 	' The speed limit items have values hardcoded directly in km/h x 100.
 	SpeedLimits.Clear
@@ -237,8 +225,10 @@ Sub WheelSizes_ItemClick(Index As Int, Value() As Int)
 	WheelIndex = Index
 End Sub
 
-' Save button sets Page1 variables and sends them back to the central
-Sub btnSave_Click
+' Save button (pressed here, but event goes to Mainpage)
+' sets Page1 variables, sends them back to the central
+' and closes page2.
+Public Sub SaveCallback
 	Dim Page1 As B4XPage1 = B4XPages.GetPage("Page 1")
 	Page1.WriteMotorSettings
 	B4XPages.ClosePage(Me)
