@@ -716,7 +716,7 @@ Private Sub LongPressTimer_Tick
 	'cvsSpeed.Invalidate
 End Sub
 
-' Called from Page 2 to save selected settings and write them to the central.
+' Called from Page 2 to save selected settings and write them to the peripheral.
 Public Sub WriteMotorSettings
 	Dim b(7) As Byte
 

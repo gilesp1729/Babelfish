@@ -226,7 +226,7 @@ Sub WheelSizes_ItemClick(Index As Int, Value() As Int)
 End Sub
 
 ' Save button (pressed here, but event goes to Mainpage)
-' sets Page1 variables, sends them back to the central
+' sets Page1 variables, sends them back to the peripheral,
 ' and closes page2.
 Public Sub SaveCallback
 	Dim Page1 As B4XPage1 = B4XPages.GetPage("Page 1")

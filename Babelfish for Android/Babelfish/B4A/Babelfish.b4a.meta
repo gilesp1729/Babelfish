@@ -16,6 +16,6 @@ ModuleClosedNodes2=
 ModuleClosedNodes3=
 ModuleClosedNodes4=
 ModuleClosedNodes5=
-NavigationStack=B4XPage1,LongPressTimer_Tick,700,0,B4XPage1,WriteMotorSettings,731,4,B4XPage1,B4XPage_Created,84,5,B4XPage1,ClockTimer_Tick,735,0,B4XPage1,UpdateTimer_Tick,260,6,B4XPage1,B4XPage_Disappear,246,0,B4XPage1,Class_Globals,29,4,B4XPage1,AvailCallback,359,0,Visual Designer,Page1.bal,-100,4,B4XPage1,B4XPage_Appear,136,4
+NavigationStack=B4XPage1,WriteMotorSettings,731,4,B4XPage1,B4XPage_Created,84,5,B4XPage1,ClockTimer_Tick,735,0,B4XPage1,UpdateTimer_Tick,260,6,B4XPage1,B4XPage_Disappear,246,0,B4XPage1,Class_Globals,29,4,B4XPage1,AvailCallback,359,0,Visual Designer,Page1.bal,-100,4,B4XPage1,B4XPage_Appear,136,4,B4XPage1,LongPressTimer_Tick,712,0,B4XPage2,WheelSizes_ItemClick,222,0
 SelectedBuild=0
 VisibleModules=1,2,3,5,4
