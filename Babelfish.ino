@@ -34,7 +34,7 @@ Adafruit_BLEGatt gatt(ble);
 // only_this_id   0 = print all packets according to verbosity
 //                !=0 print only packets with this ID
 int verbosity = 3;
-uint32_t only_this_id = 0;
+uint32_t only_this_id = 0x02F83203;
 
 int sensor_pos = 11;      // sensor position magic number.
 // No idea what they mean (shitty specs) but it's mandatory to supply one.
