@@ -441,7 +441,7 @@ void loop()
       int rc = scanbus(mcp, connected, verbosity, only_this_id);
       if (rc)
         pkts_seen = true;
-#ifdef TEST_MODE      
+#ifdef BLE_TESTMODE      
       if (!pkts_seen)
         rc = testmode_poll();
 #endif

@@ -70,6 +70,12 @@ Private Sub B4XPage_Appear
 		If sel_limit == i * 100 Then	' Highlight the currently selected speed limit
 			SpeedIndex = SpeedLimits.Size - 1
 			Highlight_Speed(SpeedIndex, True)
+
+			' Bring highlighted item onto the screen
+			' The Sleep is to allow the CLV to properly draw before scrolling it.
+			' (the mysteries of Android...)
+			Sleep(0)
+			SpeedLimits.JumpToItem(SpeedIndex)
 		End If
 	Next
 	
@@ -114,6 +120,10 @@ Private Sub B4XPage_Appear
 	
 	' Highlight the closest match
 	Highlight_Wheel(WheelIndex, True)
+	
+	' Bring highlighted item onto the screen
+	Sleep(0)
+	WheelSizes.JumpToItem(WheelIndex)
 	
 End Sub
 

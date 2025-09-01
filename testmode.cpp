@@ -4,7 +4,7 @@
 // Test mode for BLE characteristics. If no packets are received,
 // Babelfish (optionally) generates synthetic speed/cadence/power/etc. data.
 
-#ifdef TEST_MODE
+#ifdef BLE_TESTMODE
 
 static uint32_t last_test_time = 0;
 

@@ -80,9 +80,9 @@ void send_settings(Adafruit_MCP2515 mcp);
 
 // Test mode for BLE characteristics. If no packets are received,
 // Babelfish (optionally) generates synthetic speed/cadence/power/etc. data.
-// Define TESTMODE here to enable it.
+// Define BLE_TESTMODE here to enable it.
 
-#define TEST_MODE
+#define BLE_TESTMODE
 
 // Update all values every 1 second
 #define TESTMODE_INTERVAL  1000
