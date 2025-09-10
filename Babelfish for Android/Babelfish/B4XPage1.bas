@@ -111,14 +111,16 @@ Private Sub B4XPage_Appear
 
 	' Set background panel to the background color
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
-	' Set action bar not to show the save button
-	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(0, 16))
-	
+
 	' Start GPS. Updates no more than every 500ms, and after 1 metre of movement.
 	MainPage = B4XPages.GetPage("MainPage")
 	MainPage.Gnss1.Start(500, 1.0)
 	ZeroTripMaxAvg
 
+	' Set action bar to show the save button. Change it to "map"
+	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
+	MainPage.btnSave.Text = "Map"	
+	
 	' Go through the list of services and find out what we are connected to.
 	' 0 = no relevant services (we just bail)
 	' 1 = CSC service found
@@ -140,7 +142,7 @@ Private Sub B4XPage_Appear
 			cpSeen = True
 			cpService = s
 		Else If s.ToLowerCase.StartsWith("0000fff0") Then	' Babelfish, but only if CP is also seen
-			' TEMP: bfSeen = True
+			bfSeen = True	' Comment this out to simulate CP from Babelfish
 			bfService = s
 		Else if	s.ToLowerCase.StartsWith("0000180f") Then	' Battery service
 			batSeen = True
@@ -496,6 +498,8 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 					'Log("Speedx10 " & Speedx10)
 					'Log("wheelRev " & wheelRev & " last wheelrev " & lastWheelRev)
 					UpdateTripMaxAvg(((wheelRev - lastWheelRev) * circ).As(Float) / 1000000, Speedx10.As(Float) / 10)
+					DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
+					DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
 				End If
 				lastWheelRev = wheelRev		
 				lastWheelTime = wheelTime
@@ -539,6 +543,8 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 					DrawNumberPanelValue(pnlSpeed, Speedx10, 10, 1, "")
 					DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx10)
 					UpdateTripMaxAvg(((wheelRev - lastWheelRev) * circ).As(Float) / 1000000, Speedx10.As(Float) / 10)
+					DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
+					DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
 				End If
 				lastWheelRev = wheelRev
 				lastWheelTime = wheelTime

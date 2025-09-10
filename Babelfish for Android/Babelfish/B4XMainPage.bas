@@ -39,7 +39,7 @@ Sub Class_Globals
 	
 	Private pbWait As B4XLoadingIndicator
 
-	Private btnSave As Button
+	Public btnSave As Button
 	Public Gnss1 As GNSS
 	Public ConstellationToString As Map
 
@@ -70,8 +70,9 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	borderColor = Starter.borderColor
 	textColor = Starter.textColor
 	
-	' Put a save button in the action bar for Page 2.
-	' This must be done here (and the clicks trapped here)
+	' Put a save button in the action bar for Page 2. It will also be used for a Map button
+	' in Page 1, but since there is only one action bar, it must do double duty.
+	' This must be done here (and the clicks trapped here; see below)
 	Dim p As B4XView = xui.CreatePanel("")
 	p.SetLayoutAnimated(0, 0, 0, 150dip, 45dip)
 	btnSave.Initialize("btnSave")
@@ -79,7 +80,6 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	btnSave.As(B4XView).SetColorAndBorder(bgndColor, 2dip, borderColor, 4dip)
 	p.AddView(btnSave, 5dip, 0, p.Width - 10dip, p.Height)
 	B4XPages.GetManager.ActionBar.RunMethod("setCustomView", Array(p))
-	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(0, 16))	
 
 	' Set up the Scan button.
 	btnScanAndConnect.Text = "Scan for devices"
@@ -109,6 +109,7 @@ Private Sub B4XPage_Appear
 		Starter.manager.Disconnect
 		'Manager_Disconnected   ' it's already called
 	End If
+	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(0, 16))  ' remove the save button
 End Sub
 
 Private Sub B4XPage_Disappear
@@ -267,8 +268,24 @@ Sub Manager_DataAvailable(ServiceId As String, Characteristics As Map)
 	Page1.AvailCallback(ServiceId, Characteristics)
 End Sub
 
-' Pass clicks back to Page 2 when its Save button is pressed.
+' Pass action bar button ("save" button) clicks to the right page, depending on what was
+' showing when it was pressed.
 Sub btnSave_Click
-	Page2.SaveCallback
+	Log(Sender.As(Button).Text & " pressed in " & B4XPages.GetManager.GetTopPage.Id) ' comes out as "page 1" or "page 2"
+	Select B4XPages.GetManager.GetTopPage.Id.ToLowerCase		' just in case (haha)
+		Case "page 2"
+			' Pass clicks back to Page 2 when its Save button is pressed.
+			Page2.SaveCallback
+
+#if 0			
+		Case "page 1"
+			' Throw to Page 3
+			B4XPages.ShowPage("Page 3")
+			'Can only set title after page is shown.
+			B4XPages.SetTitle(Page3, ConnectedName)
+			Dim pws As PhoneWakeState
+			pws.KeepAlive(True)
+#end if
+	End Select
 End Sub
 

@@ -7,6 +7,7 @@ Version=13.1
 Sub Class_Globals
 	Private Root As B4XView 'ignore
 	Private xui As XUI 'ignore
+	Private MainPage As B4XMainPage
 	
 	Private bgndColor As Int
 	Private borderColor As Int
@@ -53,7 +54,8 @@ End Sub
 Private Sub B4XPage_Appear
 	' make the action bar show the Save button for this page only
 	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
-	
+	MainPage = B4XPages.GetPage("MainPage")
+	MainPage.btnSave.Text = "Save"
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
 	B4XPages.SetTitle(Me, "Motor Settings")
 
