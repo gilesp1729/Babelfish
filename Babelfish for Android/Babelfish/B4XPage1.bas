@@ -7,8 +7,9 @@ Version=8.5
 Sub Class_Globals
 	Private Root As B4XView 'ignore
 	Private xui As XUI 'ignore
+	Private MainPage As B4XMainPage
 	Private Page2 As B4XPage2
-
+	
 	Private bgndColor As Int
 	Private borderColor As Int
 	Private textColor As Int
@@ -107,6 +108,10 @@ Private Sub B4XPage_Appear
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
 	' Set action bar not to show the save button
 	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(0, 16))
+	
+	' Start GPS
+	MainPage = B4XPages.GetPage("MainPage")
+	MainPage.Gnss1.Start(0, 0)
 
 	' Go through the list of services and find out what we are connected to.
 	' 0 = no relevant services (we just bail)
@@ -244,13 +249,65 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlOdo)
 
 	Else
-		ToastMessageShow("No usable services found.", False)				
+		ToastMessageShow("No usable services found. Defaulting to GPS", False)
+		
+		' Don't start the update timer, but start the GPS service to obtain speed readings.
+		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
+		DrawSpeedDial(pnlSpeed, cvsSpeed)
+
+		DrawNumberPanelBlank(pnlBattery)
+		DrawNumberPanelBlank(pnlCadence)
+		DrawNumberPanel(pnlClock, "Time", "", True)
+		DrawNumberPanelBlank(pnlTrip)
+		DrawNumberPanelBlank(pnlMax)
+		DrawNumberPanelBlank(pnlAvg)
+		DrawNumberPanelBlank(pnlPower)
+		DrawNumberPanelBlank(pnlVolts)
+		DrawNumberPanelBlank(pnlAmps)
+		DrawNumberPanelBlank(pnlPAS)
+		DrawNumberPanelBlank(pnlRange)
+		DrawNumberPanelBlank(pnlLimit)
+		DrawNumberPanelBlank(pnlWheelSize)
+		DrawNumberPanelBlank(pnlCirc)
+		DrawNumberPanelBlank(pnlNewLimit)
+		DrawNumberPanelBlank(pnlNewWheelSize)
+		DrawNumberPanelBlank(pnlNewCirc)
+		DrawNumberPanelBlank(pnlOdo)
 	End If
 End Sub
 
 Private Sub B4XPage_Disappear
 	UpdateTimer.Enabled = False
+	MainPage.Gnss1.Stop
 End Sub
+
+'--------------------------------------------------------------------------
+' Handle repeated reading of GPS fix when using the GPS Bike (no Bluetooth)
+
+'Sub LocationCallback(Location1 As Location)
+Sub Gnss1_LocationChanged (Location1 As Location)
+
+	Dim Speedx100 As Int = Location1.Speed * 360
+	DrawNumberPanelValue(pnlSpeed, Speedx100, 100, 1, "")
+
+	' While here, update the clock.
+	DrawStringPanelValue(pnlClock, DateTime.Time(DateTime.Now))
+End Sub
+
+#if 0
+Sub Gnss1_GnssStatus  (SatelliteInfo As GnssStatus)
+	Dim sb As StringBuilder
+	sb.Initialize
+	sb.Append("Satellites:").Append(CRLF)
+	For i = 0 To SatelliteInfo.SatelliteCount - 1
+		sb.Append(CRLF).Append(SatelliteInfo.Svid(i)).Append($" $1.2{SatelliteInfo.Cn0DbHz(i)}"$).Append(" ").Append(SatelliteInfo.UsedInFix(i))
+		sb.Append($" $1.2{SatelliteInfo.Azimuth(i)}"$).Append($" $1.2{SatelliteInfo.Elevation(i)}"$)
+		sb.Append($" $1.2{SatelliteInfo.CarrierFrequencyHz(i) / 1000000} MHz"$)
+		sb.Append(" ").Append(MainPage.ConstellationToString.GetDefault(SatelliteInfo.ConstellationType(i), "unknown"))
+	Next
+	Log(sb.ToString)
+End Sub
+#end if
 
 '--------------------------------------------------------------------------
 ' Handle repeated reading of characteristics from the connected peripheral
@@ -739,5 +796,5 @@ Public Sub WriteMotorSettings
 End Sub
 
 ' Timer to update clock field
-Private Sub ClockTimer_Tick
-End Sub
+' Private Sub ClockTimer_Tick
+' End Sub

@@ -40,6 +40,8 @@ Sub Class_Globals
 	Private pbWait As B4XLoadingIndicator
 
 	Private btnSave As Button
+	Public Gnss1 As GNSS
+	Public ConstellationToString As Map
 
 End Sub
 
@@ -87,6 +89,12 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	pbWait.Hide
 	Connected = False
 	
+	' Initialize GPS
+	Gnss1.Initialize("Gnss1")
+	Dim gs As GnssStatus 'ignore
+	ConstellationToString = CreateMap(gs.CONSTELLATION_BEIDOU: "BEIDOU", gs.CONSTELLATION_GALILEO: "GALILEO", _
+		gs.CONSTELLATION_GLONASS: "GLONASS", gs.CONSTELLATION_GPS: "GPS", gs.CONSTELLATION_QZSS: "QZSS", gs.CONSTELLATION_SBAS: "SBAS")
+
 	' Start scanning right now, don't wait for the button
 	btnScanAndConnect_Click
 End Sub
@@ -131,6 +139,14 @@ Private Sub btnScanAndConnect_Click
 	Next
 #end if
 	clv.Clear
+
+	' Add GPS bike at start of list. Color it like a device item.
+	clv.AddTextItem("GPS Bike", "0")
+	Dim p = clv.GetRawListItem(clv.Size - 1).Panel.GetView(0) As B4XView
+	Dim t As B4XView = p.GetView(0)
+	p.SetColorAndBorder(bgndColor, 4dip, 0x00000000, 0)
+	t.TextColor = textColor
+
 	pbWait.Show
 	ScanTimer.Enabled = True
 	Starter.manager.Scan2(Null, False)
@@ -200,13 +216,24 @@ Private Sub clv_ItemClick (Index As Int, Value As Object)
 	ConnectedIndex = Index
 	ConnectedId = Value.As(String)
 	ConnectedName = clv.GetPanel(Index).GetView(0).Text
-	pbWait.Show
-	ConnectTimer.Enabled = True
+	If Index > 0 Then
+		pbWait.Show
+		ConnectTimer.Enabled = True
 #if B4A
-	Starter.manager.Connect2(ConnectedId, False) 'disabling auto connect can make the connection quicker
+		Starter.manager.Connect2(ConnectedId, False) 'disabling auto connect can make the connection quicker
 #else if B4I
-	manager.Connect(ConnectedId)
+		manager.Connect(ConnectedId)
 #end if
+	Else
+		' This is the GPS bike. There's no BLE to connect to, so throw to Page 1 straight away.
+		pbWait.Hide
+		Starter.ConnectedServices.Initialize
+		B4XPages.ShowPage("Page 1")
+		'Can only set title after page is shown.
+		B4XPages.SetTitle(Page1, ConnectedName)
+		Dim pws As PhoneWakeState
+		pws.KeepAlive(True)
+	End If		
 End Sub
 
 Sub Manager_Connected (services As List)
@@ -244,3 +271,4 @@ End Sub
 Sub btnSave_Click
 	Page2.SaveCallback
 End Sub
+
