@@ -43,9 +43,9 @@ Sub Class_Globals
 	' For CSC and CP
 	Private UpdateTimer As Timer
 	Private ConnectedDeviceType As Int
-	Private lastWheelRev As Int
+	Private lastWheelRev As Int = 0
 	Private lastWheelTime As Int
-	Private lastCrankRev As Int
+	Private lastCrankRev As Int = 0
 	Private lastCrankTime As Int
 	
 	' For the speed dial display
@@ -73,6 +73,11 @@ Sub Class_Globals
 	Private DownX, DownY As Float
 	Private longPressed As Boolean
 	Private LongPressTimer As Timer
+	
+	' For accumulating the average and max speeds and trip counter
+	Private nSamples As Int
+	Private Trip As Float
+	Private prevLocation As Location
 End Sub
 
 'You can add more parameters here.
@@ -109,9 +114,10 @@ Private Sub B4XPage_Appear
 	' Set action bar not to show the save button
 	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(0, 16))
 	
-	' Start GPS
+	' Start GPS. Updates no more than every 500ms, and after 1 metre of movement.
 	MainPage = B4XPages.GetPage("MainPage")
-	MainPage.Gnss1.Start(0, 0)
+	MainPage.Gnss1.Start(500, 1.0)
+	ZeroTripMaxAvg
 
 	' Go through the list of services and find out what we are connected to.
 	' 0 = no relevant services (we just bail)
@@ -134,7 +140,7 @@ Private Sub B4XPage_Appear
 			cpSeen = True
 			cpService = s
 		Else If s.ToLowerCase.StartsWith("0000fff0") Then	' Babelfish, but only if CP is also seen
-			bfSeen = True
+			' TEMP: bfSeen = True
 			bfService = s
 		Else if	s.ToLowerCase.StartsWith("0000180f") Then	' Battery service
 			batSeen = True
@@ -205,9 +211,9 @@ Private Sub B4XPage_Appear
 		DrawNumberPanel(pnlCadence, "", "rpm", True)	' Don't show "cad" as it gets in the way of the speed dial
 		DrawNumberPanel(pnlPAS, "Power", "", True)		' Use PAS field for power to keep it neat.
 		DrawNumberPanel(pnlClock, "Time", "", True)
-		DrawNumberPanelBlank(pnlTrip)
-		DrawNumberPanelBlank(pnlMax)
-		DrawNumberPanelBlank(pnlAvg)
+		DrawNumberPanel(pnlTrip, "Trip", "km", False)	' These are calculated values
+		DrawNumberPanel(pnlMax, "Max", "km/h", False)
+		DrawNumberPanel(pnlAvg, "Avg", "km/h", False)
 		DrawNumberPanelBlank(pnlPower)
 		DrawNumberPanelBlank(pnlVolts)
 		DrawNumberPanelBlank(pnlAmps)
@@ -232,9 +238,9 @@ Private Sub B4XPage_Appear
 		DrawNumberPanel(pnlBattery, "", "", True)
 		DrawNumberPanel(pnlCadence, "", "rpm", True)	' Don't show "cad" as it gets in the way of the speed dial
 		DrawNumberPanel(pnlClock, "Time", "", True)
-		DrawNumberPanelBlank(pnlTrip)
-		DrawNumberPanelBlank(pnlMax)
-		DrawNumberPanelBlank(pnlAvg)
+		DrawNumberPanel(pnlTrip, "Trip", "km", False)
+		DrawNumberPanel(pnlMax, "Max", "km/h", False)
+		DrawNumberPanel(pnlAvg, "Avg", "km/h", False)
 		DrawNumberPanelBlank(pnlPower)
 		DrawNumberPanelBlank(pnlVolts)
 		DrawNumberPanelBlank(pnlAmps)
@@ -258,9 +264,9 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlBattery)
 		DrawNumberPanelBlank(pnlCadence)
 		DrawNumberPanel(pnlClock, "Time", "", True)
-		DrawNumberPanelBlank(pnlTrip)
-		DrawNumberPanelBlank(pnlMax)
-		DrawNumberPanelBlank(pnlAvg)
+		DrawNumberPanel(pnlTrip, "Trip", "km", False)
+		DrawNumberPanel(pnlMax, "Max", "km/h", False)
+		DrawNumberPanel(pnlAvg, "Avg", "km/h", False)
 		DrawNumberPanelBlank(pnlPower)
 		DrawNumberPanelBlank(pnlVolts)
 		DrawNumberPanelBlank(pnlAmps)
@@ -284,17 +290,36 @@ End Sub
 '--------------------------------------------------------------------------
 ' Handle repeated reading of GPS fix when using the GPS Bike (no Bluetooth)
 
-'Sub LocationCallback(Location1 As Location)
+' This is called whenever the location changes.
+
+' We don't want all of this when using CP/CSC or just updating 
+' a Google Maps position with BF.
+
 Sub Gnss1_LocationChanged (Location1 As Location)
 
-	Dim Speedx100 As Int = Location1.Speed * 360
-	DrawNumberPanelValue(pnlSpeed, Speedx100, 100, 1, "")
+	If ConnectedDeviceType == 0 Then
+		If Not(Location1.SpeedValid) Then
+			Return
+		End If
+		Dim Speedx100 As Int = Location1.Speed * 360
+		DrawNumberPanelValue(pnlSpeed, Speedx100, 100, 1, "")
+		
+		' Update trip counter, max and average speeds.
+		Dim Dist As Float = 0
+		If nSamples > 0 Then
+			Dist = Location1.DistanceTo(prevLocation) / 1000
+		End If
+		
+		UpdateTripMaxAvg(Dist, Location1.Speed * 3.6)
+		prevLocation = Location1
 
-	' While here, update the clock.
-	DrawStringPanelValue(pnlClock, DateTime.Time(DateTime.Now))
+		' While here, update the clock.
+		DrawStringPanelValue(pnlClock, DateTime.Time(DateTime.Now))
+	End If
 End Sub
 
 #if 0
+' Show all the satellites in view.
 Sub Gnss1_GnssStatus  (SatelliteInfo As GnssStatus)
 	Dim sb As StringBuilder
 	sb.Initialize
@@ -308,6 +333,32 @@ Sub Gnss1_GnssStatus  (SatelliteInfo As GnssStatus)
 	Log(sb.ToString)
 End Sub
 #end if
+
+'--------------------------------------------------------------------------
+' Update the trip, max and average speeds, for devices that do not supply these values directly.
+Sub UpdateTripMaxAvg(dist As Float, speed As Float)
+	Dim spdx10 As Int = speed * 10
+	
+	Trip = Trip + dist
+	If spdx10 > MaxSpdx10 Then
+		MaxSpdx10 = spdx10
+	End If
+	AvgSpdx10 = ((AvgSpdx10 * nSamples) + spdx10) / (nSamples + 1)
+	nSamples = nSamples + 1
+
+	DrawNumberPanelValue(pnlTrip, (Trip * 10).As(Int), 10, 1, "")
+	DrawNumberPanelValue(pnlMax, MaxSpdx10, 10, 0, "")
+	DrawNumberPanelValue(pnlAvg, AvgSpdx10, 10, 1, "")
+End Sub
+
+' Zero the trip, max and average fields.
+Sub ZeroTripMaxAvg
+	nSamples = 0
+	AvgSpdx10 = 0
+	MaxSpdx10 = 0
+	Trip = 0
+	prevLocation.Initialize
+End Sub
 
 '--------------------------------------------------------------------------
 ' Handle repeated reading of characteristics from the connected peripheral
@@ -431,8 +482,10 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				' Wheel revolutions and wheel time
 				Dim wheelRev As Int = Unsigned4(b(4), b(5), b(6), b(7))
 				Dim wheelTime As Int = Unsigned2(b(8), b(9)) / 2	' Half-ms, don't forget
-				Dim circ As Int = 2312			' hard code this circumference for now
-				
+				Dim circ As Int = 2312			' TODO hard code this circumference for now
+				If lastWheelRev == 0 Then
+					lastWheelRev = wheelRev				
+				End If
 				If (wheelTime - lastWheelTime > 0) Then
 					' The division yields mm/ms (=m/s). Convert it to km/h*10
 					Dim Speedx10 As Int = ((wheelRev - lastWheelRev) * circ * 36) / (wheelTime - lastWheelTime)
@@ -441,20 +494,25 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 					DrawNumberPanelValue(pnlSpeed, Speedx10, 10, 1, "")
 					DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx10)
 					'Log("Speedx10 " & Speedx10)
-					lastWheelRev = wheelRev
-					lastWheelTime = wheelTime
+					'Log("wheelRev " & wheelRev & " last wheelrev " & lastWheelRev)
+					UpdateTripMaxAvg(((wheelRev - lastWheelRev) * circ).As(Float) / 1000000, Speedx10.As(Float) / 10)
 				End If
+				lastWheelRev = wheelRev		
+				lastWheelTime = wheelTime
 
 				If Bit.And(flags, 0x20) <> 0 Then	' the cadence fields are present
 					Dim crankRev As Int = Unsigned2(b(10), b(11))
 					Dim crankTime As Int = Unsigned2(b(12), b(13))
+					If lastCrankRev == 0 Then
+						lastCrankRev = crankRev
+					End If
 					If (crankTime - lastCrankTime > 0) Then
 						' Cadence in rpm
 						Dim cad As Int = ((crankRev - lastCrankRev) * 60000) / (crankTime - lastCrankTime)
 						DrawNumberPanelValue(pnlCadence, cad, 1, 0, "")
-						lastCrankRev = crankRev
-						lastCrankTime = crankTime
 					End If
+					lastCrankRev = crankRev
+					lastCrankTime = crankTime
 				End If
 			End If
 			
@@ -469,6 +527,9 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				Dim wheelRev As Int = Unsigned4(b(1), b(2), b(3), b(4))
 				Dim wheelTime As Int = Unsigned2(b(5), b(6))
 				Dim circ As Int = 2312			' hard code this circumference for now
+				If lastWheelRev == 0 Then
+					lastWheelRev = wheelRev
+				End If
 				
 				If (wheelTime - lastWheelTime > 0) Then
 					' The division yields mm/ms (=m/s). Convert it to km/h*10
@@ -477,20 +538,24 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 					DrawSpeedDial(pnlSpeed, cvsSpeed)
 					DrawNumberPanelValue(pnlSpeed, Speedx10, 10, 1, "")
 					DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx10)
-					lastWheelRev = wheelRev
-					lastWheelTime = wheelTime
+					UpdateTripMaxAvg(((wheelRev - lastWheelRev) * circ).As(Float) / 1000000, Speedx10.As(Float) / 10)
 				End If
+				lastWheelRev = wheelRev
+				lastWheelTime = wheelTime
 
 				If Bit.And(flags, 0x2) <> 0 Then	' the cadence fields are present
 					Dim crankRev As Int = Unsigned2(b(7), b(8))
 					Dim crankTime As Int = Unsigned2(b(9), b(10))
+					If lastCrankRev == 0 Then
+						lastCrankRev = crankRev
+					End If
 					If (crankTime - lastCrankTime > 0) Then
 						' Cadence in rpm
 						Dim cad As Int = ((crankRev - lastCrankRev) * 60000) / (crankTime - lastCrankTime)
 						DrawNumberPanelValue(pnlCadence, cad, 1, 0, "")
-						lastCrankRev = crankRev
-						lastCrankTime = crankTime
 					End If
+					lastCrankRev = crankRev
+					lastCrankTime = crankTime
 				End If
 				
 			End If
