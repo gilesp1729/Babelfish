@@ -9,6 +9,8 @@ Sub Class_Globals
 	Private xui As XUI 'ignore
 	Private MainPage As B4XMainPage
 	Private Page2 As B4XPage2
+	Private MapFragment1 As MapFragment
+	Private gmap As GoogleMap
 	
 	Private bgndColor As Int
 	Private borderColor As Int
@@ -98,8 +100,12 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	bgndColor = Starter.bgndColor
 	borderColor = Starter.borderColor
 	textColor = Starter.textColor
-	
+		
 	cvsSpeed.Initialize(pnlSpeed)
+	
+	Wait For MapFragment1_Ready
+	gmap = MapFragment1.GetMap
+	gmap.MyLocationEnabled = True
 
 End Sub
 
@@ -116,6 +122,16 @@ Private Sub B4XPage_Appear
 	MainPage = B4XPages.GetPage("MainPage")
 	MainPage.Gnss1.Start(500, 1.0)
 	ZeroTripMaxAvg
+	
+	' Set up map fragment
+	gmap = MapFragment1.GetMap
+	Do While gmap.MyLocation.IsInitialized = False
+		Sleep(100)
+	Loop
+	Dim cp As CameraPosition
+	cp.Initialize(gmap.MyLocation.Latitude, gmap.MyLocation.Longitude, 16)
+	gmap.MoveCamera(cp)
+
 
 	' Set action bar to show the save button. Change it to "map"
 	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
@@ -266,7 +282,7 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlBattery)
 		DrawNumberPanelBlank(pnlCadence)
 		DrawNumberPanel(pnlClock, "Time", "", True)
-		DrawNumberPanel(pnlTrip, "Trip", "km", False)
+		DrawNumberPanel(pnlTrip, "Trip", "km", True)	' TODO: over map bgnd, text is too light.
 		DrawNumberPanel(pnlMax, "Max", "km/h", False)
 		DrawNumberPanel(pnlAvg, "Avg", "km/h", False)
 		DrawNumberPanelBlank(pnlPower)
@@ -866,6 +882,3 @@ Public Sub WriteMotorSettings
 	
 End Sub
 
-' Timer to update clock field
-' Private Sub ClockTimer_Tick
-' End Sub
