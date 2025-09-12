@@ -100,13 +100,7 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	bgndColor = Starter.bgndColor
 	borderColor = Starter.borderColor
 	textColor = Starter.textColor
-		
 	cvsSpeed.Initialize(pnlSpeed)
-	
-	Wait For MapFragment1_Ready
-	gmap = MapFragment1.GetMap
-	gmap.MyLocationEnabled = True
-
 End Sub
 
 '--------------------------------------------------------------------------
@@ -122,16 +116,19 @@ Private Sub B4XPage_Appear
 	MainPage = B4XPages.GetPage("MainPage")
 	MainPage.Gnss1.Start(500, 1.0)
 	ZeroTripMaxAvg
-	
+
 	' Set up map fragment
+	Wait For MapFragment1_Ready
 	gmap = MapFragment1.GetMap
+	gmap.MyLocationEnabled = True
 	Do While gmap.MyLocation.IsInitialized = False
 		Sleep(100)
 	Loop
+	
+	' Put me in the centre of the map
 	Dim cp As CameraPosition
 	cp.Initialize(gmap.MyLocation.Latitude, gmap.MyLocation.Longitude, 16)
 	gmap.MoveCamera(cp)
-
 
 	' Set action bar to show the save button. Change it to "map"
 	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
@@ -282,7 +279,7 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlBattery)
 		DrawNumberPanelBlank(pnlCadence)
 		DrawNumberPanel(pnlClock, "Time", "", True)
-		DrawNumberPanel(pnlTrip, "Trip", "km", True)	' TODO: over map bgnd, text is too light.
+		DrawNumberPanel(pnlTrip, "Trip", "km", False)	
 		DrawNumberPanel(pnlMax, "Max", "km/h", False)
 		DrawNumberPanel(pnlAvg, "Avg", "km/h", False)
 		DrawNumberPanelBlank(pnlPower)
@@ -319,8 +316,14 @@ Sub Gnss1_LocationChanged (Location1 As Location)
 		If Not(Location1.SpeedValid) Then
 			Return
 		End If
+
+		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
+		DrawSpeedDial(pnlSpeed, cvsSpeed)
 		Dim Speedx100 As Int = Location1.Speed * 360
 		DrawNumberPanelValue(pnlSpeed, Speedx100, 100, 1, "")
+		DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx100 / 10)
+		DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
+		DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
 		
 		' Update trip counter, max and average speeds.
 		Dim Dist As Float = 0
@@ -329,6 +332,13 @@ Sub Gnss1_LocationChanged (Location1 As Location)
 		End If
 		
 		UpdateTripMaxAvg(Dist, Location1.Speed * 3.6)
+
+		' Try out bearing-up orientation of the map.
+		' TODO: make the bearings running averages, or something. The map is too jittery.
+		Dim cp As CameraPosition
+		cp.Initialize2(Location1.Latitude, Location1.Longitude, gmap.CameraPosition.Zoom, prevLocation.BearingTo(Location1), 0)
+		gmap.MoveCamera(cp)
+
 		prevLocation = Location1
 
 		' While here, update the clock.
@@ -623,7 +633,8 @@ Sub DrawNumberPanel(pan As B4XView, Name As String, Unit As String, transparent 
 	If transparent Then
 		pan.SetColorAndBorder(Bit.And(bgndColor, 0x00FFFFFF), 0, borderColor, 0)
 	Else
-		pan.SetColorAndBorder(bgndColor, 2dip, borderColor, 0)
+		'pan.SetColorAndBorder(bgndColor, 2dip, borderColor, 0)    ' try the semitransparent for map overlay
+		pan.SetColorAndBorder(Bit.And(bgndColor, 0x40FFFFFF), 2dip, Bit.And(borderColor, 0x40FFFFFF), 0)
 	End If
 	N.TextColor = textColor
 	U.TextColor = textColor
