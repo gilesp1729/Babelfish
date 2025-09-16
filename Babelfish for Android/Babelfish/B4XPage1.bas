@@ -80,6 +80,11 @@ Sub Class_Globals
 	Private nSamples As Int
 	Private Trip As Float
 	Private prevLocation As Location
+	
+	' For rollups on rows of number panels
+	Private VisibleRows As Int
+	Private LargestRow As Int
+	
 End Sub
 
 'You can add more parameters here.
@@ -117,28 +122,15 @@ Private Sub B4XPage_Appear
 	MainPage.Gnss1.Start(500, 1.0)
 	ZeroTripMaxAvg
 
-	' Set up map fragment
-	Wait For MapFragment1_Ready
-	gmap = MapFragment1.GetMap
-	gmap.MyLocationEnabled = True
-	Do While gmap.MyLocation.IsInitialized = False
-		Sleep(100)
-	Loop
-	
-	' Put me in the centre of the map
-	Dim cp As CameraPosition
-	cp.Initialize(gmap.MyLocation.Latitude, gmap.MyLocation.Longitude, 16)
-	gmap.MoveCamera(cp)
-
 	' Set action bar to show the save button. Change it to "map"
 	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
 	MainPage.btnSave.Text = "Map"	
 	
 	' Go through the list of services and find out what we are connected to.
-	' 0 = no relevant services (we just bail)
+	' 0 = no relevant services (we just use the GPS for speed)
 	' 1 = CSC service found
 	' 2 = CP service found
-	' 3 = CP service found as well as the custom motor service (0xFFF0)
+	' 3 = CP service found as well as the Babelfish custom motor service (0xFFF0)
 	' There will generally be a Battery service along for the ride too.
 	' Collect their UUIDs here.
 	ConnectedDeviceType = 0
@@ -189,31 +181,34 @@ Private Sub B4XPage_Appear
 		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
 		DrawSpeedDial(pnlSpeed, cvsSpeed)
 				
-		' These sit on top of the speed dial panel, so transparent background
-		DrawNumberPanel(pnlBattery, "", "", True)
-		DrawNumberPanel(pnlPAS, "PAS", "", True)
-		DrawNumberPanel(pnlRange, "Range", "km", True)
-		DrawNumberPanel(pnlCadence, "", "rpm", True)	' Don't show "cad" as it gets in the way of the speed dial
-		DrawNumberPanel(pnlClock, "Time", "", True)
+		' These sit on top of the speed dial panel, so transparent background.
+		DrawNumberPanel(pnlBattery, "", "", True, 0)
+		DrawNumberPanel(pnlPAS, "PAS", "", True, 0)
+		DrawNumberPanel(pnlRange, "Range", "km", True, 0)
+		DrawNumberPanel(pnlCadence, "", "rpm", True, 0)	' Don't show "cad" as it gets in the way of the speed dial
+		DrawNumberPanel(pnlClock, "Time", "", True, 0)
 
-		' The rest are lower down on  the page
-		DrawNumberPanel(pnlTrip, "Trip", "km", False)
-		DrawNumberPanel(pnlMax, "Max", "km/h", False)
-		DrawNumberPanel(pnlAvg, "Avg", "km/h", False)
+		' The rest are lower down on  the page. 
+		' They are not transparent, so they are numbered to allow the rows to be rolled up
+		LargestRow = 5
+		VisibleRows = 2
+		DrawNumberPanel(pnlTrip, "Trip", "km", False, 1)	' row 1
+		DrawNumberPanel(pnlMax, "Max", "km/h", False, 1)
+		DrawNumberPanel(pnlAvg, "Avg", "km/h", False, 1)
 
-		DrawNumberPanel(pnlPower, "Power", "", False)
-		DrawNumberPanel(pnlVolts, "Volts", "", False)
-		DrawNumberPanel(pnlAmps, "Amps", "", False)
+		DrawNumberPanel(pnlPower, "Power", "", False, 2)	' row 2
+		DrawNumberPanel(pnlVolts, "Volts", "", False, 2)
+		DrawNumberPanel(pnlAmps, "Amps", "", False, 2)
 
-		DrawNumberPanel(pnlLimit, "Limit", "km/h", False)
-		DrawNumberPanel(pnlWheelSize, "Wheel", "in", False)
-		DrawNumberPanel(pnlCirc, "Circ", "mm", False)
+		DrawNumberPanel(pnlLimit, "Limit", "km/h", False, 3)	' row 3
+		DrawNumberPanel(pnlWheelSize, "Wheel", "in", False, 3)
+		DrawNumberPanel(pnlCirc, "Circ", "mm", False, 3)
 
-		DrawNumberPanel(pnlNewLimit, "NewLm", "km/h", False)
-		DrawNumberPanel(pnlNewWheelSize, "NewSz", "in", False)
-		DrawNumberPanel(pnlNewCirc, "NewCr", "mm", False)
+		DrawNumberPanel(pnlNewLimit, "NewLm", "km/h", False, 4)	' row 4
+		DrawNumberPanel(pnlNewWheelSize, "NewSz", "in", False, 4)
+		DrawNumberPanel(pnlNewCirc, "NewCr", "mm", False, 4)
 		
-		DrawNumberPanel(pnlOdo, "Odo", "km", False)
+		DrawNumberPanel(pnlOdo, "Odo", "km", False, 5)		' row 5
 
 	Else if ConnectedDeviceType == 2 Then
 		UpdateTimer.Enabled = True
@@ -222,13 +217,16 @@ Private Sub B4XPage_Appear
 		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
 		DrawSpeedDial(pnlSpeed, cvsSpeed)
 
-		DrawNumberPanel(pnlBattery, "", "", True)
-		DrawNumberPanel(pnlCadence, "", "rpm", True)	' Don't show "cad" as it gets in the way of the speed dial
-		DrawNumberPanel(pnlPAS, "Power", "", True)		' Use PAS field for power to keep it neat.
-		DrawNumberPanel(pnlClock, "Time", "", True)
-		DrawNumberPanel(pnlTrip, "Trip", "km", False)	' These are calculated values
-		DrawNumberPanel(pnlMax, "Max", "km/h", False)
-		DrawNumberPanel(pnlAvg, "Avg", "km/h", False)
+		DrawNumberPanel(pnlBattery, "", "", True, 0)
+		DrawNumberPanel(pnlCadence, "", "rpm", True, 0)	' Don't show "cad" as it gets in the way of the speed dial
+		DrawNumberPanel(pnlPAS, "Power", "", True, 0)		' Use PAS field for power to keep it neat.
+		DrawNumberPanel(pnlClock, "Time", "", True, 0)
+
+		LargestRow = 1
+		VisibleRows = 1
+		DrawNumberPanel(pnlTrip, "Trip", "km", False, 1)	' These are calculated values
+		DrawNumberPanel(pnlMax, "Max", "km/h", False, 1)
+		DrawNumberPanel(pnlAvg, "Avg", "km/h", False, 1)
 		DrawNumberPanelBlank(pnlPower)
 		DrawNumberPanelBlank(pnlVolts)
 		DrawNumberPanelBlank(pnlAmps)
@@ -250,12 +248,15 @@ Private Sub B4XPage_Appear
 		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
 		DrawSpeedDial(pnlSpeed, cvsSpeed)
 
-		DrawNumberPanel(pnlBattery, "", "", True)
-		DrawNumberPanel(pnlCadence, "", "rpm", True)	' Don't show "cad" as it gets in the way of the speed dial
-		DrawNumberPanel(pnlClock, "Time", "", True)
-		DrawNumberPanel(pnlTrip, "Trip", "km", False)
-		DrawNumberPanel(pnlMax, "Max", "km/h", False)
-		DrawNumberPanel(pnlAvg, "Avg", "km/h", False)
+		DrawNumberPanel(pnlBattery, "", "", True, 0)
+		DrawNumberPanel(pnlCadence, "", "rpm", True, 0)	' Don't show "cad" as it gets in the way of the speed dial
+		DrawNumberPanel(pnlClock, "Time", "", True, 0)
+
+		LargestRow = 1
+		VisibleRows = 1
+		DrawNumberPanel(pnlTrip, "Trip", "km", False, 1)
+		DrawNumberPanel(pnlMax, "Max", "km/h", False, 1)
+		DrawNumberPanel(pnlAvg, "Avg", "km/h", False, 1)
 		DrawNumberPanelBlank(pnlPower)
 		DrawNumberPanelBlank(pnlVolts)
 		DrawNumberPanelBlank(pnlAmps)
@@ -278,10 +279,13 @@ Private Sub B4XPage_Appear
 
 		DrawNumberPanelBlank(pnlBattery)
 		DrawNumberPanelBlank(pnlCadence)
-		DrawNumberPanel(pnlClock, "Time", "", True)
-		DrawNumberPanel(pnlTrip, "Trip", "km", False)	
-		DrawNumberPanel(pnlMax, "Max", "km/h", False)
-		DrawNumberPanel(pnlAvg, "Avg", "km/h", False)
+		DrawNumberPanel(pnlClock, "Time", "", True, 0)
+
+		LargestRow = 1
+		VisibleRows = 1
+		DrawNumberPanel(pnlTrip, "Trip", "km", False, 1)
+		DrawNumberPanel(pnlMax, "Max", "km/h", False, 1)
+		DrawNumberPanel(pnlAvg, "Avg", "km/h", False, 1)
 		DrawNumberPanelBlank(pnlPower)
 		DrawNumberPanelBlank(pnlVolts)
 		DrawNumberPanelBlank(pnlAmps)
@@ -294,7 +298,26 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlNewWheelSize)
 		DrawNumberPanelBlank(pnlNewCirc)
 		DrawNumberPanelBlank(pnlOdo)
+
 	End If
+	
+	' Not strictly required but ensures all invisible panels don't respond
+	' to touches.
+	ShowHideAllPanels
+	ShowHideAllDragBars
+
+	' Set up map fragment. Do this now so the screen isn't messy whle waiting
+	Wait For MapFragment1_Ready
+	gmap = MapFragment1.GetMap
+	gmap.MyLocationEnabled = True
+	Do While gmap.MyLocation.IsInitialized = False
+		Sleep(100)
+	Loop
+	
+	' Put me in the centre of the map
+	Dim cp As CameraPosition
+	cp.Initialize(gmap.MyLocation.Latitude, gmap.MyLocation.Longitude, 16)
+	gmap.MoveCamera(cp)
 End Sub
 
 Private Sub B4XPage_Disappear
@@ -625,8 +648,9 @@ End Sub
 ' 2 = Value
 ' As drawn, the value is set to "--". 
 ' If transparent, background is transparent and border width is zero.
+' The row number, if nonzero, allows them to be rolled up or down.
 ' DO NOT use with graphics like the speed dial (the SetColorAndBorder will clobber them)
-Sub DrawNumberPanel(pan As B4XView, Name As String, Unit As String, transparent As Boolean)
+Sub DrawNumberPanel(pan As B4XView, Name As String, Unit As String, transparent As Boolean, row As Int)
 	Dim N As B4XView = pan.GetView(0)
 	Dim U As B4XView = pan.GetView(1)
 	Dim V As B4XView = pan.GetView(2)
@@ -642,6 +666,10 @@ Sub DrawNumberPanel(pan As B4XView, Name As String, Unit As String, transparent 
 	N.Text = Name
 	U.Text = Unit
 	V.Text = "--"
+
+	' Set the row number and decide whether it should be initially visible.
+	pan.Tag = row
+	ShowHidePanel(pan)
 End Sub
 
 ' Draw the value in a number panel. Optionally append a unit when it would 
@@ -670,9 +698,11 @@ Sub DrawStringPanelValue(pan As B4XView, str As String)
 	V.Text = str	
 End Sub
 
-' Fill a number panel with a blank background.
+' Fill a number panel with a blank background. Set its row to zero as it can never be
+' rolled up/down.
 Sub DrawNumberPanelBlank(pan As B4XView)
 	pan.SetColorAndBorder(Bit.And(bgndColor, 0x00FFFFFF), 0, borderColor, 0)
+	pan.Tag = 99		' higher than any row possible
 End Sub
 
 ' Draw a speed dial for the speed panel. Separate routines to clear
@@ -893,3 +923,105 @@ Public Sub WriteMotorSettings
 	
 End Sub
 
+'--------------------------------------------------------------------------
+' Handle dragging on each row to allow map to be progeessivly uncovered.
+' The clock, and the middle panel of each (visible) row can be dragged up or down.
+
+Sub pnlClock_Touch(Action As Int, X As Float, Y As Float)
+	dragCommon(pnlClock, Action, X, Y)
+End Sub
+Sub pnlMax_Touch(Action As Int, X As Float, Y As Float)
+	dragCommon(pnlMax, Action, X, Y)
+End Sub
+Sub pnlAmps_Touch(Action As Int, X As Float, Y As Float)
+	dragCommon(pnlAmps, Action, X, Y)
+End Sub
+Sub pnlWheelSize_Touch(Action As Int, X As Float, Y As Float)
+	dragCommon(pnlWheelSize, Action, X, Y)
+End Sub
+Sub pnlNewWheelSize_Touch(Action As Int, X As Float, Y As Float)
+	dragCommon(pnlNewWheelSize, Action, X, Y)
+End Sub
+Sub pnlOdo_Touch(Action As Int, X As Float, Y As Float)
+	dragCommon(pnlOdo, Action, X, Y)
+End Sub
+
+' Show all panel rows up to VisibleRow, and hide those beyond that.
+' Draw the little dragging bar in the bottom-most visible row to
+' indicate that it can be dragged.
+Sub ShowHidePanel(pan As Panel)
+	pan.Visible = pan.Tag.As(Int) <= VisibleRows
+	' pan.Enabled = pan.Visible	' disable so we don't consume touches on invisible panels
+End Sub
+
+' Show/hide all panels.
+Sub ShowHideAllPanels
+	ShowHidePanel(pnlTrip)
+	ShowHidePanel(pnlMax)
+	ShowHidePanel(pnlAvg)
+
+	ShowHidePanel(pnlPower)
+	ShowHidePanel(pnlVolts)
+	ShowHidePanel(pnlAmps)
+
+	ShowHidePanel(pnlLimit)
+	ShowHidePanel(pnlWheelSize)
+	ShowHidePanel(pnlCirc)
+
+	ShowHidePanel(pnlNewLimit)
+	ShowHidePanel(pnlNewWheelSize)
+	ShowHidePanel(pnlNewCirc)
+		
+	ShowHidePanel(pnlOdo)
+
+End Sub
+
+' Show or hide the drag bar for panels that may have one (the clock, and the
+' middle panel of each visible row). The bottom-most visible row gets the
+' drag bar, or the clock if they are all rolled up.
+Sub ShowHideDragBar(pan As Panel)
+	If pan.Tag.As(Int) == VisibleRows Then
+		' Draw a window-minimise character as the icon. It must have a GetView(3)
+		' object, similarly to the battery panel.
+		DrawStringPanelIcon(pan, "")
+	End If	
+End Sub
+
+' Show/hide all drag bars.
+Sub ShowHideAllDragBars
+	ShowHideDragBar(pnlClock)
+	ShowHideDragBar(pnlMax)
+	ShowHideDragBar(pnlVolts)
+	ShowHideDragBar(pnlWheelSize)
+	ShowHideDragBar(pnlNewWheelSize)
+	ShowHideDragBar(pnlOdo)
+	
+End Sub
+
+' Common touch routine for draggable panels
+Sub dragCommon(p As Panel, Action As Int, X As Float, Y As Float)
+	
+	' Don't do anything for panels beyond the visible row.
+	If p.Tag.As(Int) > VisibleRows Then
+		Return
+	End If
+	
+	Select Action
+		Case p.ACTION_DOWN
+			DownX = X
+			DownY = Y
+			'Log("Down" & X & Y)
+		Case p.ACTION_MOVE
+			Dim deltaRows As Int = (Y - DownY) / p.Height
+			
+			VisibleRows = VisibleRows + deltaRows
+			If VisibleRows < 0 Then
+				VisibleRows = 0
+			Else If VisibleRows > LargestRow Then
+				VisibleRows = LargestRow
+			End If
+			ShowHideAllPanels
+			ShowHideAllDragBars			
+			
+	End Select
+End Sub
