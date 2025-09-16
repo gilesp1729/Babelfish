@@ -951,7 +951,6 @@ End Sub
 ' indicate that it can be dragged.
 Sub ShowHidePanel(pan As Panel)
 	pan.Visible = pan.Tag.As(Int) <= VisibleRows
-	' pan.Enabled = pan.Visible	' disable so we don't consume touches on invisible panels
 End Sub
 
 ' Show/hide all panels.
@@ -984,6 +983,8 @@ Sub ShowHideDragBar(pan As Panel)
 		' Draw a window-minimise character as the icon. It must have a GetView(3)
 		' object, similarly to the battery panel.
 		DrawStringPanelIcon(pan, "")
+	Else
+		DrawStringPanelIcon(pan, " ")		
 	End If	
 End Sub
 
@@ -991,7 +992,7 @@ End Sub
 Sub ShowHideAllDragBars
 	ShowHideDragBar(pnlClock)
 	ShowHideDragBar(pnlMax)
-	ShowHideDragBar(pnlVolts)
+	ShowHideDragBar(pnlAmps)
 	ShowHideDragBar(pnlWheelSize)
 	ShowHideDragBar(pnlNewWheelSize)
 	ShowHideDragBar(pnlOdo)
@@ -1005,21 +1006,25 @@ Sub dragCommon(p As Panel, Action As Int, X As Float, Y As Float)
 	If p.Tag.As(Int) > VisibleRows Then
 		Return
 	End If
-	
 	Select Action
 		Case p.ACTION_DOWN
 			DownX = X
 			DownY = Y
-			'Log("Down" & X & Y)
+			Log("Down" & X & Y)
 		Case p.ACTION_MOVE
 			Dim deltaRows As Int = (Y - DownY) / p.Height
-			
+			If deltaRows == 0 Then
+				Return
+			End If
 			VisibleRows = VisibleRows + deltaRows
 			If VisibleRows < 0 Then
 				VisibleRows = 0
 			Else If VisibleRows > LargestRow Then
 				VisibleRows = LargestRow
 			End If
+			DownX = X
+			DownY = Y
+			Log("Delta Rows " & deltaRows & "Visible rows " & VisibleRows)
 			ShowHideAllPanels
 			ShowHideAllDragBars			
 			
