@@ -304,8 +304,10 @@ Private Sub B4XPage_Appear
 	' Not strictly required but ensures all invisible panels don't respond
 	' to touches.
 	ShowHideAllPanels
-	ShowHideAllDragBars
 
+	' Draw arrows on clock icon for rolling up panels.
+	DrawStringPanelIcon(pnlClock, "")
+	
 	' Set up map fragment. Do this now so the screen isn't messy whle waiting
 	Wait For MapFragment1_Ready
 	gmap = MapFragment1.GetMap
@@ -694,11 +696,11 @@ End Sub
 ' Draw a string in the panel's value field.
 Sub DrawStringPanelValue(pan As B4XView, str As String)
 	Dim V As B4XView = pan.GetView(2)   ' the string carrying the icon
-	V.TextColor = textColor		' it hasn't been set by DrawNumberPanel
+	' (not necessary) V.TextColor = textColor
 	V.Text = str	
 End Sub
 
-' Fill a number panel with a blank background. Set its row to zero as it can never be
+' Fill a number panel with a blank background. Set its row number so it can never be
 ' rolled up/down.
 Sub DrawNumberPanelBlank(pan As B4XView)
 	pan.SetColorAndBorder(Bit.And(bgndColor, 0x00FFFFFF), 0, borderColor, 0)
@@ -975,43 +977,20 @@ Sub ShowHideAllPanels
 
 End Sub
 
-' Show or hide the drag bar for panels that may have one (the clock, and the
-' middle panel of each visible row). The bottom-most visible row gets the
-' drag bar, or the clock if they are all rolled up.
-Sub ShowHideDragBar(pan As Panel)
-	If pan.Tag.As(Int) == VisibleRows Then
-		' Draw a window-minimise character as the icon. It must have a GetView(3)
-		' object, similarly to the battery panel.
-		DrawStringPanelIcon(pan, "")
-	Else
-		DrawStringPanelIcon(pan, " ")		
-	End If	
-End Sub
-
-' Show/hide all drag bars.
-Sub ShowHideAllDragBars
-	ShowHideDragBar(pnlClock)
-	ShowHideDragBar(pnlMax)
-	ShowHideDragBar(pnlAmps)
-	ShowHideDragBar(pnlWheelSize)
-	ShowHideDragBar(pnlNewWheelSize)
-	ShowHideDragBar(pnlOdo)
-	
-End Sub
 
 ' Common touch routine for draggable panels
+' When dragging upwards, the panel becomes invisible and
+' no longer sends move or up actions. TO get around this, keep
+' the triggering panel visible (but maybe faded) until the up event.
 Sub dragCommon(p As Panel, Action As Int, X As Float, Y As Float)
 	
-	' Don't do anything for panels beyond the visible row.
-	If p.Tag.As(Int) > VisibleRows Then
-		Return
-	End If
 	Select Action
 		Case p.ACTION_DOWN
 			DownX = X
 			DownY = Y
-			Log("Down" & X & Y)
+			Log("Down " & X & " " & Y)
 		Case p.ACTION_MOVE
+			Log("Move delta Y " & (Y - DownY))
 			Dim deltaRows As Int = (Y - DownY) / p.Height
 			If deltaRows == 0 Then
 				Return
@@ -1025,8 +1004,14 @@ Sub dragCommon(p As Panel, Action As Int, X As Float, Y As Float)
 			DownX = X
 			DownY = Y
 			Log("Delta Rows " & deltaRows & "Visible rows " & VisibleRows)
+			
+			' TODO fade out when dragging up, paint in when dragging down
+			' TODO replace up/down arrow with up or down if at bottom or top resp.
+			
+			
+		Case p.ACTION_UP
+			Log("Up")
 			ShowHideAllPanels
-			ShowHideAllDragBars			
 			
 	End Select
 End Sub
