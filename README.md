@@ -8,7 +8,7 @@ Bafang’s Bluetooth phone app, **Bafang Go+**, allows real-time speed, map, pow
 
 Babelfish also exposes custom characteristics for the companion phone app **Babelfish for Android**, to display assist level, trip and odometer, battery current and temperatures. Some motor settings (speed limit and wheel size) may be changed. The app also works backward-compatibly with other sources exposing the standard cycle power (CP) or speed and cadence (CSC) services.
 
-While plugged into USB, Babelfish has different levels of logging CAN bus packets. 
+While plugged into USB, Babelfish has different levels of logging CAN bus packets. More information is in the CANBUS folder here.
 
 ## Versions
 
@@ -34,6 +34,40 @@ To run on the bike it also needs a switching regulator to step the 48V battery v
 
 ## Connections
 
-(description of cables voltages etc)
+The 5 wires in the CAN bus cables are explained well elsewhere, but there is some confusion of terminology, as well as colours being different in different cables. 
 
-## 
+The connectors are HIGO B5-F (male) and S5-F (female) . These are the pins in a male connector:
+
+1. CTRL (used to switch on motor from the dis play- not used in this unit. Sometimes referred to confusingly as VCC)
+
+2. CANL
+
+3. VBAT (48V when display switched on)
+
+4. CANH
+
+5. GND
+
+The colours shown below are not the same as my colours from the aftermarket cables I bought. **Don't go by the colours**, and test, test, test! You don't want 48V getting into the logic accidentally.
+
+```
+HIGO-B5-F (male):
+    ────────┐
+ /    3   4 │
+│ 2         │
+ \    1   5 │
+    ────────┘
+1 Orange   : CTRL
+2 White    : CANL
+3 Brown    : VBAT
+4 Green    : CANH
+5 Black    : GND
+```
+
+Corresponding colours are joined together and the unit is inserted in the bus before the display. **Be careful to cut the TERM jumper on the CAN bus board**, as the bus is not terminated here.
+
+## Useful information
+
+Beware of terminology conflicts, and don't go by the wire colours! 
+
+[How to build the display | OpenSourceEBike.github.io](https://opensourceebike.github.io/easy_diy_display_ebike_display/build_display-bafang_m500_M600.html)
