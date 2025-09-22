@@ -82,7 +82,7 @@ void send_settings(Adafruit_MCP2515 mcp);
 // Babelfish (optionally) generates synthetic speed/cadence/power/etc. data.
 // Define BLE_TESTMODE here to enable it.
 
-#define BLE_TESTMODE
+//#define BLE_TESTMODE
 
 // Update all values every 1 second
 #define TESTMODE_INTERVAL  1000

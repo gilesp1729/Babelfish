@@ -16,6 +16,6 @@ ModuleClosedNodes2=
 ModuleClosedNodes3=
 ModuleClosedNodes4=
 ModuleClosedNodes5=
-NavigationStack=B4XPage1,pnlAmps_Touch,929,0,B4XPage1,WriteMotorSettings,903,0,B4XPage1,LongPressTimer_Tick,895,0,B4XPage1,DrawStringPanelValue,689,0,B4XPage1,DrawStringPanelIcon,680,0,B4XPage1,B4XPage_Appear,301,6,Visual Designer,Page1.bal,-100,6,B4XPage1,Class_Globals,0,0,B4XPage1,dragCommon,975,6,B4XPage1,ShowHideAllPanels,977,0
+NavigationStack=B4XPage1,btnDoubleDown_Click,985,1,Visual Designer,Page1.bal,-100,6,B4XPage1,ShowHideAllPanels,967,0,B4XPage1,DrawButton,680,6,B4XPage1,DrawNumberPanel,676,0,B4XPage1,AvailCallback,582,0,B4XPage1,Gnss1_LocationChanged,347,0,B4XPage1,B4XPage_Appear,307,6,B4XPage1,Initialize,85,0,B4XPage1,Class_Globals,81,4
 SelectedBuild=0
 VisibleModules=1,2,3,5,4
