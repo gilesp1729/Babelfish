@@ -9,8 +9,6 @@ Sub Class_Globals
 	Private xui As XUI 'ignore
 	Private MainPage As B4XMainPage
 	Private Page2 As B4XPage2
-	Private MapFragment1 As MapFragment
-	Private gmap As GoogleMap
 	
 	Private bgndColor As Int
 	Private borderColor As Int
@@ -87,6 +85,12 @@ Sub Class_Globals
 	Private btnDoubleUp As B4XView
 	Private btnDown As B4XView	
 	Private btnDoubleDown As B4XView
+	
+	' For map deisplay
+	Private MapFragment1 As MapFragment
+	Private gmap As GoogleMap
+	Private Poly As Polyline
+
 
 End Sub
 
@@ -120,12 +124,8 @@ Private Sub B4XPage_Appear
 	' Set background panel to the background color
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
 
-	' Start GPS. Updates no more than every 500ms, and after 1 metre of movement.
-	MainPage = B4XPages.GetPage("MainPage")
-	MainPage.Gnss1.Start(500, 1.0)
-	ZeroTripMaxAvg
-
 	' Set action bar to show the save button. Not used yet but might be for pause/resume later.
+	MainPage = B4XPages.GetPage("MainPage")
 	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
 	MainPage.btnSave.Text = "Not Used"	
 	
@@ -319,6 +319,9 @@ Private Sub B4XPage_Appear
 	DrawButton(btnDown)
 	DrawButton(btnDoubleDown)
 
+	' Start GPS. Updates no more than every 500ms, and after 1 metre of movement.
+	MainPage.Gnss1.Start(500, 1.0)
+
 	' Set up map fragment. Do this now so the screen isn't messy whle waiting
 	Wait For MapFragment1_Ready
 	gmap = MapFragment1.GetMap
@@ -331,6 +334,14 @@ Private Sub B4XPage_Appear
 	Dim cp As CameraPosition
 	cp.Initialize(gmap.MyLocation.Latitude, gmap.MyLocation.Longitude, 16)
 	gmap.MoveCamera(cp)
+	
+	' Start up the polyline for the track
+	Poly = gmap.AddPolyline
+	Poly.Width = 2
+	Poly.Color = Colors.Blue
+
+	' Clear the average/max speed and trip distance.
+	ZeroTripMaxAvg
 	
 End Sub
 
@@ -375,7 +386,10 @@ Sub Gnss1_LocationChanged (Location1 As Location)
 		Dim cp As CameraPosition
 		cp.Initialize2(Location1.Latitude, Location1.Longitude, gmap.CameraPosition.Zoom, prevLocation.BearingTo(Location1), 0)
 		gmap.MoveCamera(cp)
-
+		
+		Dim LL As LatLng
+		LL.Initialize(Location1.Latitude, Location1.Longitude)
+		Poly.Points.Add(LL)
 		prevLocation = Location1
 
 		' While here, update the clock.
