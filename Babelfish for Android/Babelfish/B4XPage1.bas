@@ -284,20 +284,14 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlCadence)
 		DrawNumberPanel(pnlClock, "Time", "", True, 0)
 
-		LargestRow = 2	' temp to show more panels
+		LargestRow = 1
 		VisibleRows = 1
 		DrawNumberPanel(pnlTrip, "Trip", "km", False, 1)
 		DrawNumberPanel(pnlMax, "Max", "km/h", False, 1)
 		DrawNumberPanel(pnlAvg, "Avg", "km/h", False, 1)
-#if 0			' temp to show more panels
 		DrawNumberPanelBlank(pnlPower)
 		DrawNumberPanelBlank(pnlVolts)
 		DrawNumberPanelBlank(pnlAmps)
-#else
-		DrawNumberPanel(pnlPower, "Power", "", False, 2)
-		DrawNumberPanel(pnlVolts, "Volts", "", False, 2)
-		DrawNumberPanel(pnlAmps, "Amps", "", False, 2)
-#end if		
 		DrawNumberPanelBlank(pnlPAS)
 		DrawNumberPanelBlank(pnlRange)
 		DrawNumberPanelBlank(pnlLimit)
@@ -367,22 +361,19 @@ Sub Gnss1_LocationChanged (Location1 As Location)
 			DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx100 / 10)
 			DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
 			DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
+
+			' Update trip counter, max and average speeds.
+			Dim Dist As Float = 0
+			If nSamples > 0 Then
+				Dist = Location1.DistanceTo(prevLocation) / 1000
+			End If
+			UpdateTripMaxAvg(Dist, Location1.Speed * 3.6)
 		End If
 
 		' While here, update the clock.
 		DrawStringPanelValue(pnlClock, DateTime.Time(DateTime.Now))
 	End If
 	
-	If ConnectedDeviceType <> 3 Then		
-		' Non-Babelfish devices
-		' Update trip counter, max and average speeds.
-		Dim Dist As Float = 0
-		If nSamples > 0 Then
-			Dist = Location1.DistanceTo(prevLocation) / 1000
-		End If
-		UpdateTripMaxAvg(Dist, Location1.Speed * 3.6)
-	End If
-
 	' All devices:
 	' Try out bearing-up orientation of the map.
 	' TODO: make the bearings running averages, or something? The map is too jittery.
