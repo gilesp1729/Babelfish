@@ -351,50 +351,50 @@ Private Sub B4XPage_Disappear
 End Sub
 
 '--------------------------------------------------------------------------
-' Handle repeated reading of GPS fix when using the GPS Bike (no Bluetooth)
-
+' Handle repeated reading of GPS fix.
 ' This is called whenever the location changes.
-
-' We don't want all of this when using CP/CSC or just updating 
-' a Google Maps position with BF.
 
 Sub Gnss1_LocationChanged (Location1 As Location)
 
 	If ConnectedDeviceType == 0 Then
-		If Not(Location1.SpeedValid) Then
-			Return
+		' GPS bike only (others have their own speed data source)
+		
+		If Location1.SpeedValid Then
+			ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
+			DrawSpeedDial(pnlSpeed, cvsSpeed)
+			Dim Speedx100 As Int = Location1.Speed * 360
+			DrawSpeedPanelValue(Speedx100, 100)
+			DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx100 / 10)
+			DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
+			DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
 		End If
 
-		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
-		DrawSpeedDial(pnlSpeed, cvsSpeed)
-		Dim Speedx100 As Int = Location1.Speed * 360
-		DrawSpeedPanelValue(Speedx100, 100)
-		DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx100 / 10)
-		DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
-		DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
-		
+		' While here, update the clock.
+		DrawStringPanelValue(pnlClock, DateTime.Time(DateTime.Now))
+	End If
+	
+	If ConnectedDeviceType <> 3 Then		
+		' Non-Babelfish devices
 		' Update trip counter, max and average speeds.
 		Dim Dist As Float = 0
 		If nSamples > 0 Then
 			Dist = Location1.DistanceTo(prevLocation) / 1000
 		End If
-		
 		UpdateTripMaxAvg(Dist, Location1.Speed * 3.6)
-
-		' Try out bearing-up orientation of the map.
-		' TODO: make the bearings running averages, or something. The map is too jittery.
-		Dim cp As CameraPosition
-		cp.Initialize2(Location1.Latitude, Location1.Longitude, gmap.CameraPosition.Zoom, prevLocation.BearingTo(Location1), 0)
-		gmap.MoveCamera(cp)
-		
-		Dim LL As LatLng
-		LL.Initialize(Location1.Latitude, Location1.Longitude)
-		Poly.Points.Add(LL)
-		prevLocation = Location1
-
-		' While here, update the clock.
-		DrawStringPanelValue(pnlClock, DateTime.Time(DateTime.Now))
 	End If
+
+	' All devices:
+	' Try out bearing-up orientation of the map.
+	' TODO: make the bearings running averages, or something? The map is too jittery.
+	Dim cp As CameraPosition
+	cp.Initialize2(Location1.Latitude, Location1.Longitude, gmap.CameraPosition.Zoom, prevLocation.BearingTo(Location1), 0)
+	gmap.MoveCamera(cp)
+	
+	Dim LL As LatLng
+	LL.Initialize(Location1.Latitude, Location1.Longitude)
+	Poly.Points.Add(LL)
+	prevLocation = Location1
+
 End Sub
 
 #if 0
@@ -425,7 +425,7 @@ Sub UpdateTripMaxAvg(dist As Float, speed As Float)
 	AvgSpdx10 = ((AvgSpdx10 * nSamples) + spdx10) / (nSamples + 1)
 	nSamples = nSamples + 1
 
-	DrawNumberPanelValue(pnlTrip, (Trip * 10).As(Int), 10, 1, "")
+	DrawNumberPanelValue(pnlTrip, (Trip * 10).As(Int), 10, 0, "")
 	DrawNumberPanelValue(pnlMax, MaxSpdx10, 10, 0, "")
 	DrawNumberPanelValue(pnlAvg, AvgSpdx10, 10, 1, "")
 End Sub
@@ -539,8 +539,8 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 
 			else If id.ToLowerCase.StartsWith("0000fff4") Then
 				' Motor resettable trip
-				DrawNumberPanelValue(pnlTrip, Unsigned2(b(2), b(3)), 10, 1, "")
-				DrawNumberPanelValue(pnlOdo, Unsigned2(b(0), b(1)), 1, 1, "")
+				DrawNumberPanelValue(pnlTrip, Unsigned2(b(2), b(3)), 10, 0, "")
+				DrawNumberPanelValue(pnlOdo, Unsigned2(b(0), b(1)), 1, 0, "")
 				' Store these for the next speed dial update. They don't change frequently
 				MaxSpdx10 = Unsigned2(b(6), b(7))
 				DrawNumberPanelValue(pnlMax, MaxSpdx10, 10, 0, "")
@@ -1006,9 +1006,9 @@ Sub btnDoubleUp_Click
 End Sub
 
 Sub btnDown_Click
-	VisibleRows = 2
+	VisibleRows = LargestRow
 	If LargestRow > 2 Then
-		VisibleRows = LargestRow
+		VisibleRows = 2
 	End If
 	ShowHideAllPanels
 End Sub
