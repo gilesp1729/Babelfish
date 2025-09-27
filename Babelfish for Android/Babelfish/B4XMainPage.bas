@@ -163,12 +163,14 @@ Sub Manager_DeviceFound (Name As String, Id As String, AdvertisingData As Map, R
 	' Key 1, value 0x06
 	' Key 2, value 0x18 18 0A 18 (18 18 is the CP service short UUID)
 	' Key 9, value 'Babelfish67:5D' (the device name)
+	Dim key2Found As Boolean = False
 	For Each k As Int In AdvertisingData.Keys
 		If k <> 0 Then
 			Dim b() As Byte = AdvertisingData.Get(k)
 			' Log("Key: " & k & ", Value ASCII: " & BytesToString(b, 0, b.Length, "utf8") & ", Value hex: " &  bc.HexFromBytes(b)  )
 		End If
 		If k == 2 Then
+			key2Found = True
 			' Check first two bytes of advertising data for the advertised service ID.
 			' If it's not advertising CSC or CP then we don't offer it.
 			Dim AdvertisedService As Int = Page1.Unsigned2(b(0), b(1))
@@ -177,8 +179,11 @@ Sub Manager_DeviceFound (Name As String, Id As String, AdvertisingData As Map, R
 			End If
 		End If
 	Next
-	' Blank names get skipped too. (not sure where these come from)
+	' Devices without key 2 are skipped. Blank names get skipped too. (not sure where these come from)
 	If Name.Length == 0 Then
+		Return
+	End If
+	If Not(key2Found) Then
 		Return
 	End If
 		
