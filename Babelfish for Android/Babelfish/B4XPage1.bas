@@ -90,7 +90,7 @@ Sub Class_Globals
 	Private MapFragment1 As MapFragment
 	Private gmap As GoogleMap
 	Private Poly As Polyline
-
+	Private PolyPts As List
 
 End Sub
 
@@ -330,10 +330,8 @@ Private Sub B4XPage_Appear
 	gmap.MoveCamera(cp)
 	
 	' Start up the polyline for the track
-	Poly = gmap.AddPolyline
-	Poly.Width = 2
-	Poly.Color = Colors.Blue
-
+	PolyPts.Initialize
+	
 	' Clear the average/max speed and trip distance.
 	ZeroTripMaxAvg
 	
@@ -349,6 +347,15 @@ End Sub
 ' This is called whenever the location changes.
 
 Sub Gnss1_LocationChanged (Location1 As Location)
+
+	' Throw away results that are not accurate (wait for GPS to settle down before drawing lines)
+	' Fine location typically gets to within ~5m.
+	If Not(Location1.AccuracyValid) Then
+		Return
+	End If
+	If Location1.Accuracy > 10.0 Then
+		Return
+	End If
 
 	If ConnectedDeviceType == 0 Then
 		' GPS bike only (others have their own speed data source)
@@ -380,10 +387,17 @@ Sub Gnss1_LocationChanged (Location1 As Location)
 	Dim cp As CameraPosition
 	cp.Initialize2(Location1.Latitude, Location1.Longitude, gmap.CameraPosition.Zoom, prevLocation.BearingTo(Location1), 0)
 	gmap.MoveCamera(cp)
-	
+
+	' Add the new point to the list, then clear and re-display it as a new Polyline.
 	Dim LL As LatLng
 	LL.Initialize(Location1.Latitude, Location1.Longitude)
-	Poly.Points.Add(LL)
+	PolyPts.Add(LL)
+	If PolyPts.Size >= 2 Then
+		gmap.Clear
+		Poly = gmap.AddPolyline
+		Poly.Color = Colors.Blue
+		Poly.Points = PolyPts
+	End If
 	prevLocation = Location1
 
 End Sub
@@ -421,15 +435,15 @@ Sub UpdateTripMaxAvg(dist As Float, speed As Float)
 	DrawNumberPanelValue(pnlAvg, AvgSpdx10, 10, 1, "")
 End Sub
 
-' Zero the trip, max and average fields.
+' Zero the trip, max and average fields. Clear any displayed track on the map.
 Sub ZeroTripMaxAvg
 	nSamples = 0
 	AvgSpdx10 = 0
 	MaxSpdx10 = 0
 	Trip = 0
 	prevLocation.Initialize
-	' Dim Poly As Polyline = gmap.AddPolyline
-	
+	PolyPts.Clear
+	gmap.Clear	
 End Sub
 
 '--------------------------------------------------------------------------
