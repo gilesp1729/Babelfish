@@ -324,6 +324,12 @@ Private Sub B4XPage_Appear
 		Sleep(100)
 	Loop
 	
+	' TEMP until better way is found: Set night mode
+	Dim jo As JavaObject = gmap
+	Dim style As JavaObject
+	style.InitializeNewInstance("com.google.android.gms.maps.model.MapStyleOptions", Array(File.ReadString(File.DirAssets, "NightMode.json")))
+	Log(jo.RunMethod("setMapStyle", Array(style))) 'returns True if successful
+	
 	' Put me in the centre of the map
 	Dim cp As CameraPosition
 	cp.Initialize(gmap.MyLocation.Latitude, gmap.MyLocation.Longitude, 16)
