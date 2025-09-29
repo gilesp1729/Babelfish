@@ -91,6 +91,8 @@ Sub Class_Globals
 	Private gmap As GoogleMap
 	Private Poly As Polyline
 	Private PolyPts As List
+	Private btnDay As B4XView
+	Private btnNight As B4XView
 
 End Sub
 
@@ -312,6 +314,8 @@ Private Sub B4XPage_Appear
 	DrawButton(btnDoubleUp)
 	DrawButton(btnDown)
 	DrawButton(btnDoubleDown)
+	DrawButton(btnDay)
+	DrawButton(btnNight)
 
 	' Start GPS. Updates no more than every 500ms, and after 1 metre of movement.
 	MainPage.Gnss1.Start(500, 1.0)
@@ -323,12 +327,6 @@ Private Sub B4XPage_Appear
 	Do While gmap.MyLocation.IsInitialized = False
 		Sleep(100)
 	Loop
-	
-	' TEMP until better way is found: Set night mode
-	Dim jo As JavaObject = gmap
-	Dim style As JavaObject
-	style.InitializeNewInstance("com.google.android.gms.maps.model.MapStyleOptions", Array(File.ReadString(File.DirAssets, "NightMode.json")))
-	Log(jo.RunMethod("setMapStyle", Array(style))) 'returns True if successful
 	
 	' Put me in the centre of the map
 	Dim cp As CameraPosition
@@ -423,6 +421,21 @@ Sub Gnss1_GnssStatus  (SatelliteInfo As GnssStatus)
 	Log(sb.ToString)
 End Sub
 #end if
+
+' Set night and day modes in map.
+Sub btnNight_Click
+	Dim jo As JavaObject = gmap
+	Dim style As JavaObject
+	style.InitializeNewInstance("com.google.android.gms.maps.model.MapStyleOptions", Array(File.ReadString(File.DirAssets, "NightMode.json")))
+	Log("Night Mode " & jo.RunMethod("setMapStyle", Array(style))) 'returns True if successful
+End Sub
+
+Sub btnDay_Click
+	Dim jo As JavaObject = gmap
+	Dim style As JavaObject
+	style.InitializeNewInstance("com.google.android.gms.maps.model.MapStyleOptions", Array("[]"))	' set default options
+	Log("Day Mode " & jo.RunMethod("setMapStyle", Array(style)))
+End Sub
 
 '--------------------------------------------------------------------------
 ' Update the trip, max and average speeds, for devices that do not supply these values directly.
