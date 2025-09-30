@@ -1,6 +1,5 @@
 [
   {
-    "featureType": "all",
     "elementType": "geometry",
     "stylers": [
       {
@@ -9,20 +8,18 @@
     ]
   },
   {
-    "featureType": "all",
-    "elementType": "labels.text.stroke",
-    "stylers": [
-      {
-        "lightness": -80
-      }
-    ]
-  },
-  {
-    "featureType": "administrative",
     "elementType": "labels.text.fill",
     "stylers": [
       {
         "color": "#746855"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.stroke",
+    "stylers": [
+      {
+        "color": "#242f3e"
       }
     ]
   },
@@ -64,10 +61,19 @@
   },
   {
     "featureType": "road",
-    "elementType": "geometry.fill",
+    "elementType": "geometry",
     "stylers": [
       {
-        "color": "#2b3544"
+        "color": "#758499"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry.stroke",
+    "stylers": [
+      {
+        "color": "#758499"
       }
     ]
   },
@@ -76,31 +82,13 @@
     "elementType": "labels.text.fill",
     "stylers": [
       {
-        "color": "#9ca5b3"
-      }
-    ]
-  },
-  {
-    "featureType": "road.arterial",
-    "elementType": "geometry.fill",
-    "stylers": [
-      {
-        "color": "#38414e"
-      }
-    ]
-  },
-  {
-    "featureType": "road.arterial",
-    "elementType": "geometry.stroke",
-    "stylers": [
-      {
-        "color": "#212a37"
+        "color": "#c6cfdc"
       }
     ]
   },
   {
     "featureType": "road.highway",
-    "elementType": "geometry.fill",
+    "elementType": "geometry",
     "stylers": [
       {
         "color": "#746855"
@@ -122,24 +110,6 @@
     "stylers": [
       {
         "color": "#f3d19c"
-      }
-    ]
-  },
-  {
-    "featureType": "road.local",
-    "elementType": "geometry.fill",
-    "stylers": [
-      {
-        "color": "#38414e"
-      }
-    ]
-  },
-  {
-    "featureType": "road.local",
-    "elementType": "geometry.stroke",
-    "stylers": [
-      {
-        "color": "#212a37"
       }
     ]
   },
@@ -184,7 +154,7 @@
     "elementType": "labels.text.stroke",
     "stylers": [
       {
-        "lightness": -20
+        "color": "#17263c"
       }
     ]
   }

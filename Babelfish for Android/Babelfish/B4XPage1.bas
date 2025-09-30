@@ -333,8 +333,9 @@ Private Sub B4XPage_Appear
 	cp.Initialize(gmap.MyLocation.Latitude, gmap.MyLocation.Longitude, 16)
 	gmap.MoveCamera(cp)
 	
-	' Start up the polyline for the track
+	' Start up the polyline for the track. Start maps in night mode
 	PolyPts.Initialize
+	btnNight_Click
 	
 	' Clear the average/max speed and trip distance.
 	ZeroTripMaxAvg
