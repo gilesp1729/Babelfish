@@ -18,12 +18,9 @@ Sub Class_Globals
 	Private Page1 As B4XPage1
 	Private Page2 As B4XPage2
 	
-	Private ConnectedName As String
-	Private ConnectedId As String
 	Private ConnectedIndex As Int
 	Private btnScanAndConnect As B4XView
 	Private clv As CustomListView	
-	Private Connected As Boolean
 	Private ScanTimer As Timer
 	Private ConnectTimer As Timer
 	Private ToastMessage As BCToast
@@ -46,6 +43,7 @@ Sub Class_Globals
 End Sub
 
 Public Sub Initialize
+	' B4XPages.GetManager.LogEvents = True
 	Log("MainPage Init")
 End Sub
 
@@ -87,7 +85,7 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	Dim b As Button = btnScanAndConnect
 	b.TextColor = textColor
 	pbWait.Hide
-	Connected = False
+	Starter.Connected = False
 	
 	' Initialize GPS
 	Gnss1.Initialize("Gnss1")
@@ -104,10 +102,9 @@ End Sub
 
 Private Sub B4XPage_Appear
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
-	If Connected Then
+	If Starter.Connected Then
 		' when coming back from Page1, disconnect any connected peripheral
 		Starter.manager.Disconnect
-		'Manager_Disconnected   ' it's already called
 	End If
 	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(0, 16))  ' remove the save button
 End Sub
@@ -209,26 +206,25 @@ Sub ScanTimer_Tick
 End Sub
 
 Sub Manager_Disconnected
-	Log("Disconnected")
-	Connected = False
+	Log("Manager_Disconnected")
+	Starter.Connected = False
 	Dim pws As PhoneWakeState
 	pws.ReleaseKeepAlive
 End Sub
 
 ' Device clicked on - connect to the device and throw us to Page1
 Private Sub clv_ItemClick (Index As Int, Value As Object)
-	Log("connecting to")
-	Log(Value)
+	Log("Connecting to " & Value)
 	ConnectedIndex = Index
-	ConnectedId = Value.As(String)
-	ConnectedName = clv.GetPanel(Index).GetView(0).Text
+	Starter.ConnectedId = Value.As(String)
+	Starter.ConnectedName = clv.GetPanel(Index).GetView(0).Text
 	If Index > 0 Then
 		pbWait.Show
 		ConnectTimer.Enabled = True
 #if B4A
-		Starter.manager.Connect2(ConnectedId, False) 'disabling auto connect can make the connection quicker
+		Starter.manager.Connect2(Starter.ConnectedId, False) 'disabling auto connect can make the connection quicker
 #else if B4I
-		manager.Connect(ConnectedId)
+		manager.Connect(Starter.ConnectedId)
 #end if
 	Else
 		' This is the GPS bike. There's no BLE to connect to, so throw to Page 1 straight away.
@@ -236,22 +232,22 @@ Private Sub clv_ItemClick (Index As Int, Value As Object)
 		Starter.ConnectedServices.Initialize
 		B4XPages.ShowPage("Page 1")
 		'Can only set title after page is shown.
-		B4XPages.SetTitle(Page1, ConnectedName)
+		B4XPages.SetTitle(Page1, Starter.ConnectedName)
 		Dim pws As PhoneWakeState
 		pws.KeepAlive(True)
 	End If		
 End Sub
 
 Sub Manager_Connected (services As List)
-	Log("Connected")
-	Connected = True
+	Log("Manager_Connected")
+	Starter.Connected = True
 	pbWait.Hide
 	ConnectTimer.Enabled = False
 	Starter.ConnectedServices = services
 	' Throw to Page 1
 	B4XPages.ShowPage("Page 1")
 	'Can only set title after page is shown.
-	B4XPages.SetTitle(Page1, ConnectedName)
+	B4XPages.SetTitle(Page1, Starter.ConnectedName)
 	Dim pws As PhoneWakeState
 	pws.KeepAlive(True)
 End Sub

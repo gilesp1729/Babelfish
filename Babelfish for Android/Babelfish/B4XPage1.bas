@@ -115,6 +115,7 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	borderColor = Starter.borderColor
 	textColor = Starter.textColor
 	cvsSpeed.Initialize(pnlSpeed)
+	PolyPts.Initialize
 End Sub
 
 '--------------------------------------------------------------------------
@@ -130,6 +131,15 @@ Private Sub B4XPage_Appear
 	MainPage = B4XPages.GetPage("MainPage")
 	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
 	MainPage.btnSave.Text = "Not Used"	
+	
+	' TODO: If we come in here after sleeping, and the BLE connection has been lost,
+	' attempt a reconnection. 
+	
+	' Do this on a timer instead, in case we're still showing this page and
+	' this appear sub doesnt get called. (not the update timer, as this sill be turned off
+	' by the disappear sub)
+	
+	
 	
 	' Go through the list of services and find out what we are connected to.
 	' 0 = no relevant services (we just use the GPS for speed)
@@ -173,7 +183,7 @@ Private Sub B4XPage_Appear
 		servList.Add(batService)
 	End If
 
-	Log("Connected to device of type " & ConnectedDeviceType)
+	Log("to device of type " & ConnectedDeviceType)
 	
 	' Set up display panels. If we have type 0 (nothing sensible is found)
 	' then don't start the update timer, and warn the user it's a dead end.
@@ -318,11 +328,20 @@ Private Sub B4XPage_Appear
 	DrawButton(btnNight)
 
 	' Start GPS. Updates no more than every 500ms, and after 1 metre of movement.
+	Log("Starting GNSS")
 	MainPage.Gnss1.Start(500, 1.0)
 
 	' Set up map fragment. Do this now so the screen isn't messy whle waiting
-	Wait For MapFragment1_Ready
+	
+	' Warning: This doesn't ever come back when re-entering (the event never comes)
+	' Wait For MapFragment1_Ready
+	' Do a positive test for an initialised map every time instead.
 	gmap = MapFragment1.GetMap
+	Do While gmap.IsInitialized = False
+		Sleep(100)
+		gmap = MapFragment1.GetMap
+	Loop
+	Log("Enabling my location")
 	gmap.MyLocationEnabled = True
 	Do While gmap.MyLocation.IsInitialized = False
 		Sleep(100)
@@ -331,18 +350,20 @@ Private Sub B4XPage_Appear
 	' Put me in the centre of the map
 	Dim cp As CameraPosition
 	cp.Initialize(gmap.MyLocation.Latitude, gmap.MyLocation.Longitude, 16)
+	Log("Setting camera position")
 	gmap.MoveCamera(cp)
 	
-	' Start up the polyline for the track. Start maps in night mode
-	PolyPts.Initialize
+	' Start maps in night mode
 	btnNight_Click
 	
 	' Clear the average/max speed and trip distance.
+	Log("Clearing avg/max/trip")
 	ZeroTripMaxAvg
 	
 End Sub
 
 Private Sub B4XPage_Disappear
+	Log ("Page 1 disappear")
 	UpdateTimer.Enabled = False
 	MainPage.Gnss1.Stop
 End Sub
@@ -468,11 +489,23 @@ End Sub
 
 '--------------------------------------------------------------------------
 ' Handle repeated reading of characteristics from the connected peripheral
-
-' When timer fires, read all the characteristics for all the wanted services.
+' handle reconnection attempts if the BLE connect is broken for any reason.
 Sub UpdateTimer_Tick
+
+	If Not(Starter.Connected) Then
+		Log("Connection lost, reconnecting...")
+#if B4A
+	Starter.manager.Connect2(Starter.ConnectedId, False)
+#else if B4I
+	manager.Connect(Starter.ConnectedId)
+#end if
+		B4XPages.SetTitle(Me, "Reconnecting...")  ' Manager.Connect will reinstate title
+		Return
+	End If
+
+	' When timer fires, read all the characteristics for all the wanted services.
 	For Each s As String In servList
-		'Log("ReadData from " & s)
+		Log("ReadData from " & s)
 		Starter.manager.ReadData(s)
 	Next
 	' While here, update the clock.

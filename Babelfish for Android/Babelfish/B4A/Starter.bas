@@ -17,6 +17,9 @@ Sub Process_Globals
 	#else if B4i
 	Public manager As BleManager
 	#end if
+	Public Connected As Boolean
+	Public ConnectedName As String
+	Public ConnectedId As String
 	Public ConnectedServices As List
 	
 	' Colors
