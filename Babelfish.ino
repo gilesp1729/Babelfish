@@ -33,8 +33,8 @@ Adafruit_BLEGatt gatt(ble);
 //                3 = print all packets.
 // only_this_id   0 = print all packets according to verbosity
 //                !=0 print only packets with this ID
-int verbosity = 3;
-uint32_t only_this_id = 0x02F83203;
+int verbosity = 2;
+uint32_t only_this_id = 0;
 
 int sensor_pos = 11;      // sensor position magic number.
 // No idea what they mean (shitty specs) but it's mandatory to supply one.
@@ -78,6 +78,26 @@ unsigned long lastWheeltime = 0;   // last time measurement taken
 unsigned int crankRev = 0;
 unsigned long lastCranktime = 0;
 
+// Simple XORing checksum
+uint8_t checksum(uint8_t *buffer, int size)
+{
+  uint8_t sum = 0;
+  for (int i = 0; i < size; i++)
+    sum += buffer[i];
+  return sum;
+}
+
+// Check a checksum, but return false if the whole lot is zero
+// to stop false hits
+bool checksum_check(uint8_t *buffer, int size)
+{
+  for (int i = 0; i < size; i++)
+  {
+    if (buffer[i] != 0)
+      return checksum(buffer, size) == 0;
+  }
+  return false;
+}
 
 // Fill the CP measurement array and send it
 void fillCP()
@@ -127,7 +147,8 @@ void fillMS()
   bleBuffer[n++] = (settings.circ >> 8) & 0xff;
   bleBuffer[n++] = settings.wheel_size & 0xff;
   bleBuffer[n++] = (settings.wheel_size >> 8) & 0xff;
-  bleBuffer[n++] = settings.valid_read;
+  // Send the checksum if we have valid data, otherwise zero
+  bleBuffer[n++] = settings.valid_read ? checksum(bleBuffer, 6) : 0;
   gatt.setChar(motorSettingsRead, bleBuffer, n);
 
   n = 0;
@@ -160,7 +181,8 @@ bool readMS()
     settings.new_limit = bleBuffer[0] + ((uint16_t)bleBuffer[1] << 8);
     settings.new_circ = bleBuffer[2] + ((uint16_t)bleBuffer[3] << 8);
     settings.new_wheel = bleBuffer[4] + ((uint16_t)bleBuffer[5] << 8);
-    settings.valid_write = bleBuffer[6];
+    //settings.valid_write = bleBuffer[6];
+    settings.valid_write = checksum_check(bleBuffer, 7); 
     if (settings.valid_read && settings.valid_write)
     {
       if (settings.new_limit != settings.limit)
@@ -169,6 +191,11 @@ bool readMS()
         rc = true;
       if (settings.new_wheel != settings.wheel_size)
         rc = true;
+    }
+    if (!settings.valid_write)
+    {
+      Serial.print("Checksum failure: ");
+      Serial.println(checksum(bleBuffer, 7));
     }
   }
   return rc;
@@ -400,6 +427,13 @@ void loop()
             send_speed_limit(mcp, atoi(p));
           }
           break;
+
+        case 'k':
+        case 'K':
+          // Send calibration packet
+          send_calibration(mcp);
+          break;
+
       }
     }
   }

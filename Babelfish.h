@@ -60,6 +60,7 @@ extern Settings settings;
 // connected      Whether connected to a BLE central
 // verbosity      0 = don't print any packets
 //                1 = print all packets with changed data (suppress repeats)
+//                    Requires SUPPRESS_REPEATS to be defined
 //                2 = print known packets
 //                3 = print all packets.
 // only_this_id   0 = print all packets according to verbosity
@@ -75,6 +76,9 @@ void send_speed_limit(Adafruit_MCP2515 mcp, int speed);
 // Set wheel circumference
 void send_circumference(Adafruit_MCP2515 mcp, int circum);
 
+// Perform calibration
+void send_calibration(Adafruit_MCP2515 mcp);
+
 // Set all settings
 void send_settings(Adafruit_MCP2515 mcp);
 
@@ -83,6 +87,9 @@ void send_settings(Adafruit_MCP2515 mcp);
 // Define BLE_TESTMODE here to enable it.
 
 //#define BLE_TESTMODE
+
+// Mode to allow suppression repeats (verbosity 1). Omitting this saves valuable RAM.
+//#define SUPPRESS_REPEATS
 
 // Update all values every 1 second
 #define TESTMODE_INTERVAL  1000

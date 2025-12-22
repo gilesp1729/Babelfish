@@ -6,10 +6,11 @@ MotorController motor;
 Display display;
 Settings settings;
 
-// Data structure to retain packet ID's to suppress printing of unchanged data
-
 // The maximum size of a packet as read from the CAN bus
 #define DATA_SIZE   16
+
+#ifdef SUPPRESS_REPEATS
+// Data structure to retain packet ID's to suppress printing of unchanged data
 
 // Number of distinct packet ID's to be checked on
 #define PACKETS     48
@@ -28,6 +29,7 @@ typedef struct Packet
 
 static Packet packets[PACKETS];
 static int num_packets = 0;       // Number of slots in the packet ID array
+#endif // SUPPRESS_REPEATS
 
 // Helper to extract two data bytes from a packet.
 uint16_t raw_2bytes(uint8_t b0, uint8_t b1)
@@ -125,6 +127,7 @@ void echo_tail(int verbosity, uint16_t repeats)
 //
 // verbosity      0 = don't print any packets
 //                1 = print all packets with changed data (suppress repeats)
+//                    Requires SUPPRESS_REPEATS to be defined
 //                2 = print known packets
 //                3 = print all packets.
 //
@@ -248,6 +251,7 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity, uint32_t only_t
 
     // Optionally, determine if the packet has been seen before.
     i = -1;
+#ifdef SUPPRESS_REPEATS    
     if (verbosity == 1)
     {
         bool found = false;
@@ -336,6 +340,7 @@ int scanbus(Adafruit_MCP2515 mcp, bool connected, int verbosity, uint32_t only_t
         // Repeat count to be printed later
         reps = packets[i].repeats;
     }
+#endif // SUPPRESS_REPEATS
 
     // If we know something about this packet ID, print it. The derived values
     // have been calculated above.
@@ -572,6 +577,31 @@ void send_settings(Adafruit_MCP2515 mcp)
 
   mcp.beginExtendedPacket(0x05103203);
   for (i = 0; i < 6; i++)
+    mcp.write(data[i]);
+  mcp.endPacket();
+}
+
+// Send a packet to tell the controller to perform position-sensor calibration.
+// This is necessary when replacing a controller board.
+void send_calibration(Adafruit_MCP2515 mcp)
+{
+  uint8_t data[8];
+  int i;
+
+  // 5116201 or 5016200 with 8 zero data bytes?
+  for (i = 0; i < 8; i++)
+    data[i] = 0;
+
+  // DEBUG: Write out the packet to serial in hex.
+  for (i = 0; i < 8; i++)
+  {
+    Serial.print(data[i], HEX);
+    Serial.print(F(" "));
+  }
+  Serial.println();
+
+  mcp.beginExtendedPacket(0x05016200);
+  for (i = 0; i < 8; i++)
     mcp.write(data[i]);
   mcp.endPacket();
 }

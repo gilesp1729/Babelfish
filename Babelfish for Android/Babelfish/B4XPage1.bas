@@ -132,15 +132,6 @@ Private Sub B4XPage_Appear
 	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
 	MainPage.btnSave.Text = "Not Used"	
 	
-	' TODO: If we come in here after sleeping, and the BLE connection has been lost,
-	' attempt a reconnection. 
-	
-	' Do this on a timer instead, in case we're still showing this page and
-	' this appear sub doesnt get called. (not the update timer, as this sill be turned off
-	' by the disappear sub)
-	
-	
-	
 	' Go through the list of services and find out what we are connected to.
 	' 0 = no relevant services (we just use the GPS for speed)
 	' 1 = CSC service found
@@ -571,7 +562,8 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				
 			else If id.ToLowerCase.StartsWith("0000fff2") Then
 				' Motor settings. Only display these (both read and written) if they have valid data.
-				If (b(6) <> 0) Then  ' valid read from peripheral
+				'If (b(6) <> 0) Then  ' valid read from peripheral
+				If checksum_check(b, 7) Then  ' valid read from peripheral with checksum
 					SettingsValid = True
 					SpeedLimitx100 = Unsigned2(b(0), b(1))
 					DrawNumberPanelValue(pnlLimit, SpeedLimitx100, 100, 0, "")
@@ -581,6 +573,8 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 					WheelSize124 = Unsigned2(b(4), b(5))
 					Dim wheelx10 As Int = Bit.ShiftRight(WheelSize124, 4) * 10 + Bit.And(WheelSize124, 0xF)
 					DrawNumberPanelValue(pnlWheelSize, wheelx10, 10, 1, "")
+				Else					
+					Log("Checksum failure: " & checksum(b, 7))
 				End If
 									
 				If NewSettingsValid Then
@@ -725,6 +719,24 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 					
 		End If
 	Next
+End Sub
+
+' Compute a simple XORing cchecksum.
+Sub checksum(b() As Byte, size As Int) As Byte
+	Dim sum As Byte = 0
+	For i = 0 To size - 1
+		sum = Bit.Xor(sum, b(i))
+	Next
+End Sub
+
+' Check a checksum, first ensuring the buffer is not all zeroes.
+Sub checksum_check(b() As Byte, size As Int) As Boolean
+	For i = 0 To size - 1
+		If b(i) <> 0 Then
+			Return checksum(b, size) == 0
+		End If
+	Next
+	Return False
 End Sub
 
 '--------------------------------------------------------------------------
@@ -1020,7 +1032,8 @@ Public Sub WriteMotorSettings
 	b(3) = Bit.And(Bit.ShiftRight(NewWheelCirc, 8), 0xFF)
 	b(4) = Bit.And(NewWheelSize124, 0xFF)
 	b(5) = Bit.And(Bit.ShiftRight(NewWheelSize124, 8), 0xFF)
-	b(6) = 1  ' NewSettingsValid
+	'b(6) = 1  ' NewSettingsValid
+	b(6) = checksum(b, 6)
 	
 	Log("Writing " & bc.HexFromBytes(b) & " to " & settingsService & " " & settingsChar)
 	Starter.manager.WriteData(settingsService, settingsChar, b)
