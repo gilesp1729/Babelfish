@@ -66,7 +66,6 @@ Sub Class_Globals
 	Private NewSpeedLimitx100 As Int
 	Private NewWheelCirc As Int
 	Private NewWheelSize124 As Int
-	Private SettingsValid As Boolean = False
 	
 	' For catching long presses and triggering Page 2
 	Private DownX, DownY As Float
@@ -74,7 +73,7 @@ Sub Class_Globals
 	Private LongPressTimer As Timer
 	
 	' For accumulating the average and max speeds and trip counter
-	Private nSamples As Int
+	Private Time As Float
 	Private Trip As Float
 	Private prevLocation As Location
 	
@@ -225,9 +224,9 @@ Private Sub B4XPage_Appear
 
 		DrawNumberPanel(pnlNewLimit, "Motor", "", False, 4)	' row 4			' motor temp
 		DrawNumberPanel(pnlNewWheelSize, "Ctrl", "", False, 4)				' ctrlr temp
-		DrawNumberPanelBlank(pnlNewCirc)
+		DrawNumberPanel(pnlNewCirc, "Wh/km", "", False, 4)					' Wh/km energy consumption
 		
-		DrawNumberPanel(pnlOdo, "CP km/h", "km/h", False, 5)		' row 5			' CP speed (to compare with BF speed for sanity check)
+		DrawNumberPanel(pnlOdo, "CP speed", "km/h", False, 5)		' row 5			' CP speed (to compare with BF speed for sanity check)
 		
 		' Start logging the data to the log file.
 		Logger.Initialize(File.OpenOutput(File.DirInternal, "BabelVESC.csv", False))
@@ -424,7 +423,7 @@ Sub Gnss1_LocationChanged (Location1 As Location)
 
 			' Update trip counter, max and average speeds.
 			Dim Dist As Float = 0
-			If nSamples > 0 Then
+			If PolyPts.Size >= 1 Then
 				Dist = Location1.DistanceTo(prevLocation) / 1000
 			End If
 			UpdateTripMaxAvg(Dist, Location1.Speed * 3.6)
@@ -489,28 +488,39 @@ End Sub
 
 '--------------------------------------------------------------------------
 ' Update the trip, max and average speeds, for devices that do not supply these values directly.
-' TODO calculate the range in here too.
+' Which in the case of BabelVESC is all of them.
 Sub UpdateTripMaxAvg(dist As Float, speed As Float)
 	Dim spdx10 As Int = speed * 10
-	
+	If speed == 0 Then
+		Return		' don't accumulate stopped samples
+	End If
+	If dist == 0 Then
+		Return		' don't accumulate stopped samples
+	End If
+
+	Dim hours As Float = dist / speed
 	Trip = Trip + dist
+	Time = Time + hours
 	If spdx10 > MaxSpdx10 Then
 		MaxSpdx10 = spdx10
 	End If
-	AvgSpdx10 = ((AvgSpdx10 * nSamples) + spdx10) / (nSamples + 1)
-	nSamples = nSamples + 1
+	AvgSpdx10 = (Trip * 10) / Time
 
 	DrawNumberPanelValue(pnlTrip, (Trip * 10).As(Int), 10, 0, "")
 	DrawNumberPanelValue(pnlMax, MaxSpdx10, 10, 0, "")
 	DrawNumberPanelValue(pnlAvg, AvgSpdx10, 10, 1, "")
+	
+	' TODO calculate the average Wh/km and range in here too.
+	Dim Whkm As Float = (watts * hours) / dist
+	DrawNumberPanelValue(pnlNewCirc, (Whkm * 10).As(Int), 10, 0, "")
 End Sub
 
 ' Zero the trip, max and average fields. Clear any displayed track on the map.
 Sub ZeroTripMaxAvg
-	nSamples = 0
 	AvgSpdx10 = 0
 	MaxSpdx10 = 0
 	Trip = 0
+	Time = 0
 	prevLocation.Initialize
 	PolyPts.Clear
 	gmap.Clear	
@@ -982,10 +992,6 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas)
 	Dim cx As Float = pan.Width / 2
 	Dim cy As Float = pan.Height / 2
 	Dim rad As Float = pan.Height / 2 - gap
-	If Not(SettingsValid) Then
-		Return	' no information yet
-	End If
-	
 	Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
 	Dim x As Float = cx + rad * Cos(Angle)
 	Dim y As Float = cy - rad * Sin(Angle)
@@ -1000,14 +1006,13 @@ End Sub
 ' Interactions with speed dial to display menus, etc.
 
 ' Handle touches, etc. on the speed dial. Long presses via a timer.
-' Only act on long presses if valid motor settings have been received.
 Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 	Select Action
 		Case pnlSpeed.ACTION_DOWN
 			DownX = X
 			DownY = Y
 			longPressed = False
-			LongPressTimer.Enabled = SettingsValid
+			LongPressTimer.Enabled = True
 			'Log("Down" & X & Y)
 		Case pnlSpeed.ACTION_MOVE
 			If Abs(X - DownX) > 30 Or Abs(Y - DownY) > 30 Then
@@ -1017,7 +1022,7 @@ Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 				'Log("Moved" & X & Y)
 				
 				' reset timer and start again
-				LongPressTimer.Enabled = SettingsValid
+				LongPressTimer.Enabled = True
 				DownX = X
 				DownY = Y
 			End If

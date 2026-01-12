@@ -16,6 +16,6 @@ ModuleClosedNodes2=
 ModuleClosedNodes3=
 ModuleClosedNodes4=
 ModuleClosedNodes5=
-NavigationStack=B4XPage2,B4XPage_Created,41,0,B4XPage1,B4XPage_Appear,268,0,B4XPage1,Initialize,105,0,B4XPage1,B4XPage_Disappear,380,6,B4XPage1,Class_Globals,98,6,B4XPage1,B4XPage_Created,116,4
+NavigationStack=B4XPage1,btnDay_Click,486,0,B4XPage1,DrawSpeedLimitSpot,997,0,B4XPage1,pnlSpeed_Touch,997,2,B4XPage1,WriteMotorSettings,1048,0,B4XPage1,B4XPage_Appear,272,6,B4XPage1,ZeroTripMaxAvg,509,1,B4XPage1,Class_Globals,64,6,B4XPage1,Gnss1_LocationChanged,446,0,B4XPage1,AvailCallback,636,0,B4XPage1,UpdateTripMaxAvg,499,6
 SelectedBuild=0
 VisibleModules=1,2,3,5,4
