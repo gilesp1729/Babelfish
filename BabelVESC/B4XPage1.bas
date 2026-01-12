@@ -9,6 +9,7 @@ Sub Class_Globals
 	Private xui As XUI 'ignore
 	Private MainPage As B4XMainPage
 	Private Page2 As B4XPage2
+	Public Provider As FileProvider
 	
 	Private bgndColor As Int
 	Private borderColor As Int
@@ -126,6 +127,7 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	textColor = Starter.textColor
 	cvsSpeed.Initialize(pnlSpeed)
 	PolyPts.Initialize
+	Provider.Initialize
 End Sub
 
 '--------------------------------------------------------------------------
@@ -368,60 +370,28 @@ Private Sub B4XPage_Appear
 	
 End Sub
 
-
-'---------------------------------------------------------------
-' This verbiage is just to save the log file.
-Sub SaveAs (Source As InputStream, MimeType As String, Title As String) As ResumableSub
-	Dim intent As Intent
-	intent.Initialize("android.intent.action.CREATE_DOCUMENT", "")
-	intent.AddCategory("android.intent.category.OPENABLE")
-	intent.PutExtra("android.intent.extra.TITLE", Title)
-	intent.SetType(MimeType)
-	StartActivityForResult(intent)
-	Wait For ion_Event (MethodName As String, Args() As Object)
-	If -1 = Args(0) Then 'resultCode = RESULT_OK
-		Dim result As Intent = Args(1)
-		Dim jo As JavaObject = result
-		Dim ctxt As JavaObject
-		Dim ContentResolver As JavaObject = ctxt.InitializeContext.RunMethodJO("getContentResolver", Null)
-		Dim out As OutputStream = ContentResolver.RunMethod("openOutputStream", Array(jo.RunMethod("getData", Null), "wt")) 'wt = Write+Trim
-		File.Copy2(Source, out)
-		out.Close
-		Return True
-	End If
-	Return False
-End Sub
-
-Sub StartActivityForResult(i As Intent)
-	Dim jo As JavaObject = GetBA
-	Dim ion As Object = jo.CreateEvent("anywheresoftware.b4a.IOnActivityResult", "ion", Null)
-	jo.RunMethod("startActivityForResult", Array(ion, i))
-End Sub
-
-Sub GetBA As Object
-	Dim jo As JavaObject = Me
-	Return jo.RunMethod("getBA", Null)
-End Sub
-
-'---------------------------------------------------------------
-
 Private Sub B4XPage_Disappear
 	Log ("Page 1 disappear")
 	UpdateTimer.Enabled = False
 	MainPage.Gnss1.Stop
 	If ConnectedDeviceType == 3 Then
 		Logger.Close
+		'Log("Log file size: " & File.Size(File.DirInternal, "BabelVESC.csv"))
 		
-		' SaveAs the file to someplace sensible (like Downloads)
+		' Save the file to someplace sensible by sharing it.
 		' Date/time code  to generate a unique filename to save
 		Dim filename As String
-		' DateTime.DateFormat = "dd/MM/yyyy"
-		' DateTime.TimeFormat = "HH:mm:ss"
 		DateTime.DateFormat = "yyyyMMdd"
 		DateTime.TimeFormat = "HHmmss"
 		filename = "BabelVESC-" & DateTime.Date(DateTime.Now) & "-" & DateTime.Time(DateTime.Now) & ".csv"
-		Wait For (SaveAs(File.OpenInput(File.DirInternal, "BabelVESC.csv"), "application/octet-stream", filename)) Complete (Success As Boolean)
-		File.Delete(File.DirInternal, "BabelVESC.csv")
+		
+		File.Copy(File.DirInternal, "BabelVESC.csv", Provider.SharedFolder, filename)
+		Dim in As Intent
+		in.Initialize(in.ACTION_SEND, "")
+		in.SetType("text/plain")
+		in.PutExtra("android.intent.extra.STREAM", Provider.GetFileUri(filename))
+		in.Flags = 1 'FLAG_GRANT_READ_URI_PERMISSION
+		StartActivity(in)
 	End If
 End Sub
 
