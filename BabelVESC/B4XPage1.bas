@@ -100,6 +100,7 @@ Sub Class_Globals
 	Dim ampsreqx100 As Int
 	Dim voltsx100 As Int
 	Dim watts As Int
+	Dim pas As Int
 	Dim mtemp As Int
 	Dim ctemp As Int
 
@@ -634,8 +635,8 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				DrawNumberPanelValue(pnlNewLimit, mtemp, 1, 0, "C")			' motor temp
 				ctemp = b(13) - 40
 				DrawNumberPanelValue(pnlNewWheelSize, ctemp, 1, 0, "C")		' controller temp
-				
-				DrawStringPanelValue(pnlPAS, PASLevels(Unsigned(b(11))))
+				pas = Unsigned(b(11))
+				DrawStringPanelValue(pnlPAS, PASLevels(pas))
 				
 			else If id.ToLowerCase.StartsWith("0000fff2") Then
 				' Motor settings. 
@@ -673,11 +674,11 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 						Dim ampsreq As Float = ampsreqx100 / 100.0
 						' (WheelTime,WheelRev,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp)
 						Logger.Write("" & wheelTime)
-						Logger.Write("" & wheelTime)
 						Logger.Write("," & wheelRev)
 						Logger.Write("," & speed)
 						Logger.Write("," & cadence)
 						Logger.Write("," & watts)
+						Logger.Write("," & pas)
 						Logger.Write("," & volts)
 						Logger.Write("," & amps)
 						Logger.Write("," & ampsreq)
