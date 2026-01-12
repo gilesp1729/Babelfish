@@ -59,7 +59,6 @@ Sub Class_Globals
 	' For the speed limit display and interaction on the speed dial
 	Private SpeedLimitx100 As Int
 	Private WheelCirc As Int
-	Private WheelSize124 As Int
 	Private settingsService As String
 	Private settingsChar As String
 
@@ -67,7 +66,6 @@ Sub Class_Globals
 	Private NewWheelCirc As Int
 	Private NewWheelSize124 As Int
 	Private SettingsValid As Boolean = False
-	Private NewSettingsValid As Boolean = False
 	
 	' For catching long presses and triggering Page 2
 	Private DownX, DownY As Float
@@ -93,6 +91,17 @@ Sub Class_Globals
 	Private PolyPts As List
 	Private btnDay As B4XView
 	Private btnNight As B4XView
+	
+	' For logging
+	Private Logger As TextWriter
+	Dim Speedx100 As Int
+	Dim cadence As Int
+	Dim ampsx100 As Int
+	Dim ampsreqx100 As Int
+	Dim voltsx100 As Int
+	Dim watts As Int
+	Dim mtemp As Int
+	Dim ctemp As Int
 
 End Sub
 
@@ -162,7 +171,8 @@ Private Sub B4XPage_Appear
 	Next
 	If bfSeen And cpSeen Then
 		ConnectedDeviceType = 3
-		servList.Add(bfService)
+		servList.Add(bfService)		' add 'em both, so BF can log avg/max from CP wheel revs/times
+		servList.Add(cpService)
 	Else If cpSeen Then
 		ConnectedDeviceType = 2
 		servList.Add(cpService)
@@ -207,14 +217,18 @@ Private Sub B4XPage_Appear
 		DrawNumberPanel(pnlAmps, "Amps", "", False, 2)
 
 		DrawNumberPanel(pnlLimit, "Limit", "km/h", False, 3)	' row 3
-		DrawNumberPanel(pnlWheelSize, "Wheel", "in", False, 3)
+		DrawNumberPanel(pnlWheelSize, "ReqAmps", "", False, 3)				' requested amps
 		DrawNumberPanel(pnlCirc, "Circ", "mm", False, 3)
 
-		DrawNumberPanel(pnlNewLimit, "Motor", "", False, 4)	' row 4
-		DrawNumberPanel(pnlNewWheelSize, "Ctrl", "", False, 4)
-		DrawNumberPanel(pnlNewCirc, "NewCr", "mm", False, 4)
+		DrawNumberPanel(pnlNewLimit, "Motor", "", False, 4)	' row 4			' motor temp
+		DrawNumberPanel(pnlNewWheelSize, "Ctrl", "", False, 4)				' ctrlr temp
+		DrawNumberPanelBlank(pnlNewCirc)
 		
-		DrawNumberPanel(pnlOdo, "Odo", "km", False, 5)		' row 5
+		DrawNumberPanel(pnlOdo, "CP km/h", "km/h", False, 5)		' row 5			' CP speed (to compare with BF speed for sanity check)
+		
+		' Start logging the data to the log file.
+		Logger.Initialize(File.OpenOutput(File.DirInternal, "BabelVESC.csv", False))
+		Logger.WriteLine("WheelTime,WheelRev,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp")
 
 	Else if ConnectedDeviceType == 2 Then
 		UpdateTimer.Enabled = True
@@ -353,10 +367,61 @@ Private Sub B4XPage_Appear
 	
 End Sub
 
+
+'---------------------------------------------------------------
+' This verbiage is just to save the log file.
+Sub SaveAs (Source As InputStream, MimeType As String, Title As String) As ResumableSub
+	Dim intent As Intent
+	intent.Initialize("android.intent.action.CREATE_DOCUMENT", "")
+	intent.AddCategory("android.intent.category.OPENABLE")
+	intent.PutExtra("android.intent.extra.TITLE", Title)
+	intent.SetType(MimeType)
+	StartActivityForResult(intent)
+	Wait For ion_Event (MethodName As String, Args() As Object)
+	If -1 = Args(0) Then 'resultCode = RESULT_OK
+		Dim result As Intent = Args(1)
+		Dim jo As JavaObject = result
+		Dim ctxt As JavaObject
+		Dim ContentResolver As JavaObject = ctxt.InitializeContext.RunMethodJO("getContentResolver", Null)
+		Dim out As OutputStream = ContentResolver.RunMethod("openOutputStream", Array(jo.RunMethod("getData", Null), "wt")) 'wt = Write+Trim
+		File.Copy2(Source, out)
+		out.Close
+		Return True
+	End If
+	Return False
+End Sub
+
+Sub StartActivityForResult(i As Intent)
+	Dim jo As JavaObject = GetBA
+	Dim ion As Object = jo.CreateEvent("anywheresoftware.b4a.IOnActivityResult", "ion", Null)
+	jo.RunMethod("startActivityForResult", Array(ion, i))
+End Sub
+
+Sub GetBA As Object
+	Dim jo As JavaObject = Me
+	Return jo.RunMethod("getBA", Null)
+End Sub
+
+'---------------------------------------------------------------
+
 Private Sub B4XPage_Disappear
 	Log ("Page 1 disappear")
 	UpdateTimer.Enabled = False
 	MainPage.Gnss1.Stop
+	If ConnectedDeviceType == 3 Then
+		Logger.Close
+		
+		' SaveAs the file to someplace sensible (like Downloads)
+		' Date/time code  to generate a unique filename to save
+		Dim filename As String
+		' DateTime.DateFormat = "dd/MM/yyyy"
+		' DateTime.TimeFormat = "HH:mm:ss"
+		DateTime.DateFormat = "yyyyMMdd"
+		DateTime.TimeFormat = "HHmmss"
+		filename = "BabelVESC-" & DateTime.Date(DateTime.Now) & "-" & DateTime.Time(DateTime.Now) & ".csv"
+		Wait For (SaveAs(File.OpenInput(File.DirInternal, "BabelVESC.csv"), "application/octet-stream", filename)) Complete (Success As Boolean)
+		File.Delete(File.DirInternal, "BabelVESC.csv")
+	End If
 End Sub
 
 '--------------------------------------------------------------------------
@@ -395,6 +460,7 @@ Sub Gnss1_LocationChanged (Location1 As Location)
 		End If
 
 		' While here, update the clock.
+		DateTime.TimeFormat = "HH:mm"
 		DrawStringPanelValue(pnlClock, DateTime.Time(DateTime.Now))
 	End If
 	
@@ -452,6 +518,7 @@ End Sub
 
 '--------------------------------------------------------------------------
 ' Update the trip, max and average speeds, for devices that do not supply these values directly.
+' TODO calculate the range in here too.
 Sub UpdateTripMaxAvg(dist As Float, speed As Float)
 	Dim spdx10 As Int = speed * 10
 	
@@ -496,10 +563,12 @@ Sub UpdateTimer_Tick
 
 	' When timer fires, read all the characteristics for all the wanted services.
 	For Each s As String In servList
-		Log("ReadData from " & s)
+		'Log("ReadData from " & s)
 		Starter.manager.ReadData(s)
 	Next
+	
 	' While here, update the clock.
+	DateTime.TimeFormat = "HH:mm"
 	DrawStringPanelValue(pnlClock, DateTime.Time(DateTime.Now))
 End Sub
 
@@ -539,7 +608,7 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 			' Babelfish Motor service
 			If id.ToLowerCase.StartsWith("0000fff1") Then
 				' Motor measurement
-				Dim Speedx100 As Int = Unsigned2(b(0), b(1))
+				Speedx100 = Unsigned2(b(0), b(1))
 				ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
 				DrawSpeedDial(pnlSpeed, cvsSpeed)
 				DrawSpeedPanelValue(Speedx100, 100)
@@ -547,20 +616,24 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				' Draw things that have to appear on top of the speed stripe
 				DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
 				DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
-				' Draw speed limit spot when a speed limit packet has been
-				' received on the CAN bus. They are infrequent (15-20 seconds apart)
 				DrawSpeedLimitSpot(pnlSpeed, cvsSpeed)
-				
-				DrawNumberPanelValue(pnlCadence, Unsigned(b(2)), 1, 0, "")
-				DrawNumberPanelValue(pnlRange, Unsigned2(b(9), b(10)), 100, 0, "")
+				cadence = Unsigned(b(2))
+				DrawNumberPanelValue(pnlCadence, cadence, 1, 0, "")
+				ampsreqx100 = Unsigned2(b(9), b(10))
+				DrawNumberPanelValue(pnlWheelSize, ampsreqx100, 100, 1, "A")	' requested amps
 
-				DrawNumberPanelValue(pnlPower, Unsigned2(b(3), b(4)), 1, 0, "W")
-				DrawNumberPanelValue(pnlVolts, Unsigned2(b(5), b(6)), 100, 1, "V")
-				DrawNumberPanelValue(pnlAmps, Unsigned2(b(7), b(8)), 100, 1, "A")
+				watts = Unsigned2(b(3), b(4))
+				DrawNumberPanelValue(pnlPower, watts, 1, 0, "W")
+				voltsx100 = Unsigned2(b(5), b(6))
+				DrawNumberPanelValue(pnlVolts, voltsx100, 100, 1, "V")
+				ampsx100 = Unsigned2(b(7), b(8))
+				DrawNumberPanelValue(pnlAmps, ampsx100, 100, 1, "A")
 				' Note these are signed as they might be negative (brrrr...)
 				' TODO fix the names of the fields.
-				DrawNumberPanelValue(pnlNewLimit, b(12) - 40, 1, 0, "C")			' motor temp
-				DrawNumberPanelValue(pnlNewWheelSize, b(13) - 40, 1, 0, "C")		' controller temp
+				mtemp = b(12) - 40
+				DrawNumberPanelValue(pnlNewLimit, mtemp, 1, 0, "C")			' motor temp
+				ctemp = b(13) - 40
+				DrawNumberPanelValue(pnlNewWheelSize, ctemp, 1, 0, "C")		' controller temp
 				
 				DrawStringPanelValue(pnlPAS, PASLevels(Unsigned(b(11))))
 				
@@ -571,21 +644,53 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				WheelCirc = Unsigned2(b(2), b(3))
 				DrawNumberPanelValue(pnlCirc, WheelCirc, 1, 0, "")
 
-			else If id.ToLowerCase.StartsWith("0000fff3") Then
+			else If id.ToLowerCase.StartsWith("0000fff3") Then						' TODO remove this when decided how to do it
 				' Writable new settings. Remember the service and char ID's for later writing
 				settingsService = ServiceId
 				settingsChar = id
-
-			else If id.ToLowerCase.StartsWith("0000fff4") Then
-				' Motor resettable trip
-				DrawNumberPanelValue(pnlTrip, Unsigned2(b(2), b(3)), 10, 0, "")
-				DrawNumberPanelValue(pnlOdo, Unsigned2(b(0), b(1)), 1, 0, "")
-				' Store these for the next speed dial update. They don't change frequently
-				MaxSpdx10 = Unsigned2(b(6), b(7))
-				DrawNumberPanelValue(pnlMax, MaxSpdx10, 10, 0, "")
-				AvgSpdx10 = Unsigned2(b(4), b(5))
-				DrawNumberPanelValue(pnlAvg, AvgSpdx10, 10, 1, "")
+				
+			else If id.ToLowerCase.StartsWith("00002a63") Then
+				' CP measurement yields wheel revs and times. Use these to update the max/avg
+				' since we don't have the CAN bus controller any more
+				' Wheel revolutions and wheel time
+				Dim wheelRev As Int = Unsigned4(b(4), b(5), b(6), b(7))
+				Dim wheelTime As Int = Unsigned2(b(8), b(9)) / 2	' Half-ms, don't forget
+				If lastWheelRev == 0 Then
+					lastWheelRev = wheelRev
+				End If
+				If (wheelTime - lastWheelTime > 0) Then
+					' The division yields mm/ms (=m/s). Convert it to km/h*10
+					Dim Speedx10 As Int = ((wheelRev - lastWheelRev) * WheelCirc * 36) / (wheelTime - lastWheelTime)
+					UpdateTripMaxAvg(((wheelRev - lastWheelRev) * WheelCirc).As(Float) / 1000000, Speedx10.As(Float) / 10)
 					
+					' The wheel time has advanced, so write a line out to the log file. Handle float conversions.
+					' Catch any updates that sneak in just after the page has disappeared (the logger has been closed
+					' and attempts to write to it will crash)
+					If UpdateTimer.Enabled Then
+						Dim speed As Float = Speedx100 / 100.0
+						Dim volts As Float = voltsx100 / 100.0					
+						Dim amps As Float = ampsx100 / 100.0
+						Dim ampsreq As Float = ampsreqx100 / 100.0
+						' (WheelTime,WheelRev,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp)
+						Logger.Write("" & wheelTime)
+						Logger.Write("" & wheelTime)
+						Logger.Write("," & wheelRev)
+						Logger.Write("," & speed)
+						Logger.Write("," & cadence)
+						Logger.Write("," & watts)
+						Logger.Write("," & volts)
+						Logger.Write("," & amps)
+						Logger.Write("," & ampsreq)
+						Logger.Write("," & mtemp)
+						Logger.WriteLine("," & ctemp)
+					End If
+										
+					' Just for a sanity check, write out wheeltime/rev speed to cmpare with Farnsworth speed. They should agree.
+					DrawNumberPanelValue(pnlOdo, Speedx10, 10, 0, "")
+				End If
+				lastWheelRev = wheelRev
+				lastWheelTime = wheelTime
+
 			End If
 		
 		Else If ConnectedDeviceType == 2 Then
@@ -708,23 +813,6 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 	Next
 End Sub
 
-' Compute a simple XORing cchecksum.
-Sub checksum(b() As Byte, size As Int) As Byte
-	Dim sum As Byte = 0
-	For i = 0 To size - 1
-		sum = Bit.Xor(sum, b(i))
-	Next
-End Sub
-
-' Check a checksum, first ensuring the buffer is not all zeroes.
-Sub checksum_check(b() As Byte, size As Int) As Boolean
-	For i = 0 To size - 1
-		If b(i) <> 0 Then
-			Return checksum(b, size) == 0
-		End If
-	Next
-	Return False
-End Sub
 
 '--------------------------------------------------------------------------
 ' Drawing routines
@@ -919,9 +1007,6 @@ Sub DrawSpeedMark(pan As Panel, cvs As B4XCanvas, Speedx10 As Int, Color As Int)
 End Sub
 
 'Draw a speed limit spot on the dial.
-' If no speed limit packets have been received on the CAN bus, don't draw it.
-' If the new speed limit has been set and a confirmation packet has not 
-' been received, draw it in grey.
 Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas)
 	Dim cx As Float = pan.Width / 2
 	Dim cy As Float = pan.Height / 2
@@ -930,25 +1015,12 @@ Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas)
 		Return	' no information yet
 	End If
 	
-	If NewSettingsValid And NewSpeedLimitx100 <> SpeedLimitx100 Then
-		' Draw the spot in gray at the new limit. It will be redrawn
-		' when the packet confirms the new limit has been accepted.
-		DrawNumberPanelValue(pnlNewLimit, NewSpeedLimitx100, 100, 0, "")
-		Dim Angle As Float = SpeedDialAngle(NewSpeedLimitx100 / 10)
-		Dim x As Float = cx + rad * Cos(Angle)
-		Dim y As Float = cy - rad * Sin(Angle)
-		Dim r As Float = gap / 2
-		cvs.DrawCircle(x, y, r, Colors.LightGray, True, 0)
-		cvs.DrawCircle(x, y, r, Colors.Gray, False, 2dip)
-	Else		' Just draw the red spot at current limit.
-		Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
-		Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
-		Dim x As Float = cx + rad * Cos(Angle)
-		Dim y As Float = cy - rad * Sin(Angle)
-		Dim r As Float = gap / 2
-		cvs.DrawCircle(x, y, r, Colors.White, True, 0)
-		cvs.DrawCircle(x, y, r, Colors.Red, False, 2dip)
-	End If
+	Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
+	Dim x As Float = cx + rad * Cos(Angle)
+	Dim y As Float = cy - rad * Sin(Angle)
+	Dim r As Float = gap / 2
+	cvs.DrawCircle(x, y, r, Colors.White, True, 0)
+	cvs.DrawCircle(x, y, r, Colors.Red, False, 2dip)
 	cvs.Invalidate
 	
 End Sub
@@ -988,7 +1060,7 @@ Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 				' Set the selections in Page 2 view lists
 				Page2 = B4XPages.GetPage("Page 2")
 				Page2.sel_limit = SpeedLimitx100
-				Page2.sel_wheel = WheelSize124
+				Page2.sel_wheel = 0		'' TODO get rid of all this stuff
 				Page2.sel_circ = WheelCirc
 				B4XPages.ShowPage("Page 2")
 			End If
@@ -1011,7 +1083,6 @@ Public Sub WriteMotorSettings
 	NewSpeedLimitx100 = Page2.sel_limit
 	NewWheelSize124 = Page2.sel_wheel
 	NewWheelCirc = Page2.sel_circ
-	NewSettingsValid = True
 	
 	b(0) = Bit.And(NewSpeedLimitx100, 0xFF)
 	b(1) = Bit.And(Bit.ShiftRight(NewSpeedLimitx100, 8), 0xFF)
@@ -1019,8 +1090,6 @@ Public Sub WriteMotorSettings
 	b(3) = Bit.And(Bit.ShiftRight(NewWheelCirc, 8), 0xFF)
 	b(4) = Bit.And(NewWheelSize124, 0xFF)
 	b(5) = Bit.And(Bit.ShiftRight(NewWheelSize124, 8), 0xFF)
-	'b(6) = 1  ' NewSettingsValid
-	b(6) = checksum(b, 6)
 	
 	Log("Writing " & bc.HexFromBytes(b) & " to " & settingsService & " " & settingsChar)
 	Starter.manager.WriteData(settingsService, settingsChar, b)
