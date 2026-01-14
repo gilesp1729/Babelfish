@@ -53,8 +53,6 @@ Sub Class_Globals
 	Private Const Pi As Float = 3.14159
 	Private Const gap As Float = 20dip
 	Private Const stp As Float = 0.05
-	Private MaxSpdx10 As Int = 0
-	Private AvgSpdx10 As Int = 0
 	Private cvsSpeed As B4XCanvas
 	
 	' For the speed limit display and interaction on the speed dial
@@ -72,10 +70,16 @@ Sub Class_Globals
 	Private longPressed As Boolean
 	Private LongPressTimer As Timer
 	
-	' For accumulating the average and max speeds and trip counter
+	' For accumulating the average/max speeds, trip counter, energy consumption and range
+	Private MaxSpdx10 As Int = 0
+	Private AvgSpdx10 As Int = 0
 	Private Time As Float
-	Private Trip As Float
-	Private prevLocation As Location
+	Private Trip As Float = 0
+	Private Wh As Float = 0
+	
+	' Battery (hard code the battery Wh for the moment, but TODO: it should come from connected device)
+	Private batPercent As Int
+	Private batCapacity As Int = 800	' Wh
 	
 	' For rollups on rows of number panels
 	Private VisibleRows As Int
@@ -84,13 +88,14 @@ Sub Class_Globals
 	Private btnDown As B4XView	
 	Private btnDoubleDown As B4XView
 	
-	' For map deisplay
+	' For map display
 	Private MapFragment1 As MapFragment
 	Private gmap As GoogleMap
 	Private Poly As Polyline
 	Private PolyPts As List
 	Private btnDay As B4XView
 	Private btnNight As B4XView
+	Private prevLocation As Location
 	
 	' For logging
 	Private Logger As TextWriter
@@ -230,7 +235,7 @@ Private Sub B4XPage_Appear
 		
 		' Start logging the data to the log file.
 		Logger.Initialize(File.OpenOutput(File.DirInternal, "BabelVESC.csv", False))
-		Logger.WriteLine("WheelTime,WheelRev,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp")
+		Logger.WriteLine("WheelTime,WheelRev,CrankTime,CrankRev,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp")
 
 	Else if ConnectedDeviceType == 2 Then
 		UpdateTimer.Enabled = True
@@ -509,10 +514,15 @@ Sub UpdateTripMaxAvg(dist As Float, speed As Float)
 	DrawNumberPanelValue(pnlTrip, (Trip * 10).As(Int), 10, 0, "")
 	DrawNumberPanelValue(pnlMax, MaxSpdx10, 10, 0, "")
 	DrawNumberPanelValue(pnlAvg, AvgSpdx10, 10, 1, "")
-	
-	' TODO calculate the average Wh/km and range in here too.
-	Dim Whkm As Float = (watts * hours) / dist
-	DrawNumberPanelValue(pnlNewCirc, (Whkm * 10).As(Int), 10, 0, "")
+
+	' BabelVESC supplies watts. Calculate average Wh/km and range in km.
+	If ConnectedDeviceType == 3 Then	
+		Wh = Wh + (watts * hours)
+		Dim Whkm As Float = Wh / Trip
+		DrawNumberPanelValue(pnlNewCirc, (Whkm * 10).As(Int), 10, 0, "")
+		Dim range As Float = batCapacity * batPercent / Whkm
+		DrawNumberPanelValue(pnlRange, (range * 10).As(Int), 10, 0, "")
+	End If
 End Sub
 
 ' Zero the trip, max and average fields. Clear any displayed track on the map.
@@ -521,6 +531,7 @@ Sub ZeroTripMaxAvg
 	MaxSpdx10 = 0
 	Trip = 0
 	Time = 0
+	Wh = 0
 	prevLocation.Initialize
 	PolyPts.Clear
 	gmap.Clear	
@@ -639,6 +650,21 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				If lastWheelRev == 0 Then
 					lastWheelRev = wheelRev
 				End If
+				
+				' Also pick up the crank revs and times.
+				Dim crankRev As Int = Unsigned2(b(10), b(11))
+				Dim crankTime As Int = Unsigned2(b(12), b(13))
+				If lastCrankRev == 0 Then
+					lastCrankRev = crankRev
+				End If
+				If (crankTime - lastCrankTime > 0) Then
+					' Cadence in rpm. Sanity check it to the old odo field.
+					Dim cad As Int = ((crankRev - lastCrankRev) * 60000) / (crankTime - lastCrankTime)
+					DrawNumberPanelValue(pnlOdo, cad, 1, 0, "")
+				End If
+				lastCrankRev = crankRev
+				lastCrankTime = crankTime
+				
 				If (wheelTime - lastWheelTime > 0) Then
 					' The division yields mm/ms (=m/s). Convert it to km/h*10
 					Dim Speedx10 As Int = ((wheelRev - lastWheelRev) * WheelCirc * 36) / (wheelTime - lastWheelTime)
@@ -652,9 +678,11 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 						Dim volts As Float = voltsx100 / 100.0					
 						Dim amps As Float = ampsx100 / 100.0
 						Dim ampsreq As Float = ampsreqx100 / 100.0
-						' (WheelTime,WheelRev,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp)
+						' (WheelTime,WheelRev,CrankTime, CrankRev,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp)
 						Logger.Write("" & wheelTime)
 						Logger.Write("," & wheelRev)
+						Logger.Write("," & crankTime)
+						Logger.Write("," & crankRev)
 						Logger.Write("," & speed)
 						Logger.Write("," & cadence)
 						Logger.Write("," & watts)
@@ -665,9 +693,6 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 						Logger.Write("," & mtemp)
 						Logger.WriteLine("," & ctemp)
 					End If
-										
-					' Just for a sanity check, write out wheeltime/rev speed to cmpare with Farnsworth speed. They should agree.
-					DrawNumberPanelValue(pnlOdo, Speedx10, 10, 0, "")
 				End If
 				lastWheelRev = wheelRev
 				lastWheelTime = wheelTime
@@ -699,8 +724,6 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 					DrawSpeedDial(pnlSpeed, cvsSpeed)
 					DrawSpeedPanelValue(Speedx10, 10)
 					DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx10)
-					'Log("Speedx10 " & Speedx10)
-					'Log("wheelRev " & wheelRev & " last wheelrev " & lastWheelRev)
 					UpdateTripMaxAvg(((wheelRev - lastWheelRev) * circ).As(Float) / 1000000, Speedx10.As(Float) / 10)
 					DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
 					DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
@@ -776,14 +799,15 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 		If id.ToLowerCase.StartsWith("00002a19") Then
 			' battery level characteristic. These characters are
 			' Awesome icons representing battery state of charge.
-			DrawNumberPanelValue(pnlBattery, Unsigned(b(0)), 1, 0, "% ")  ' note trailing space
-			If b(0) > 80 Then
+			batPercent = Unsigned(b(0))
+			DrawNumberPanelValue(pnlBattery, batPercent, 1, 0, "% ")  ' note trailing space
+			If batPercent > 80 Then
 				battIcon = ""
-			Else If b(0) > 60 Then
+			Else If batPercent > 60 Then
 				battIcon = ""
-			Else If b(0) > 40 Then
+			Else If batPercent > 40 Then
 				battIcon = ""
-			Else If b(0) > 20 Then
+			Else If batPercent > 20 Then
 				battIcon = ""
 			Else
 				battIcon = ""
