@@ -212,6 +212,12 @@ Sub Manager_Disconnected
 	pws.ReleaseKeepAlive
 End Sub
 
+Sub Manager_WriteComplete(characteristic As Object, status As Int)
+	Log("Write Complete " & status)
+	Page1.UpdateTimer.Enabled = True
+End Sub
+
+
 ' Device clicked on - connect to the device and throw us to Page1
 Private Sub clv_ItemClick (Index As Int, Value As Object)
 	Log("Connecting to " & Value)

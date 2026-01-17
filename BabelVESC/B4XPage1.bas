@@ -29,11 +29,11 @@ Sub Class_Globals
 	Private pnlMax As Panel
 	Private pnlAvg As Panel
 	Private pnlLimit As Panel
-	Private pnlWheelSize As Panel
+	Private pnlAmpsReq As Panel
 	Private pnlCirc As Panel
-	Private pnlNewLimit As Panel
-	Private pnlNewWheelSize As Panel
-	Private pnlNewCirc As Panel
+	Private pnlMotorTemp As Panel
+	Private pnlCtrlrTemp As Panel
+	Private pnlWhkm As Panel
 	Private pnlOdo As Panel
 	Private pnlClock As Panel
 	
@@ -42,7 +42,7 @@ Sub Class_Globals
 	Private servList As List
 	
 	' For CSC and CP
-	Private UpdateTimer As Timer
+	Public UpdateTimer As Timer
 	Private ConnectedDeviceType As Int
 	Private lastWheelRev As Int = 0
 	Private lastWheelTime As Int
@@ -61,10 +61,6 @@ Sub Class_Globals
 	Private settingsService As String
 	Private settingsChar As String
 
-	Private NewSpeedLimitx100 As Int
-	Private NewWheelCirc As Int
-	Private NewWheelSize124 As Int
-	
 	' For catching long presses and triggering Page 2
 	Private DownX, DownY As Float
 	Private longPressed As Boolean
@@ -80,6 +76,10 @@ Sub Class_Globals
 	' Battery (hard code the battery Wh for the moment, but TODO: it should come from connected device)
 	Private batPercent As Int
 	Private batCapacity As Int = 800	' Wh
+	
+	' For PAS up/down buttons
+	Private PAS_up As Button
+	Private PAS_down As Button
 	
 	' For rollups on rows of number panels
 	Private VisibleRows As Int
@@ -132,6 +132,8 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	cvsSpeed.Initialize(pnlSpeed)
 	PolyPts.Initialize
 	Provider.Initialize
+	prevLocation.Initialize
+
 End Sub
 
 '--------------------------------------------------------------------------
@@ -224,18 +226,19 @@ Private Sub B4XPage_Appear
 		DrawNumberPanel(pnlAmps, "Amps", "", False, 2)
 
 		DrawNumberPanel(pnlLimit, "Limit", "km/h", False, 3)	' row 3
-		DrawNumberPanel(pnlWheelSize, "ReqAmps", "", False, 3)				' requested amps
+		DrawNumberPanel(pnlAmpsReq, "ReqAmps", "", False, 3)	
 		DrawNumberPanel(pnlCirc, "Circ", "mm", False, 3)
 
-		DrawNumberPanel(pnlNewLimit, "Motor", "", False, 4)	' row 4			' motor temp
-		DrawNumberPanel(pnlNewWheelSize, "Ctrl", "", False, 4)				' ctrlr temp
-		DrawNumberPanel(pnlNewCirc, "Wh/km", "", False, 4)					' Wh/km energy consumption
+		DrawNumberPanel(pnlMotorTemp, "Motor", "", False, 4)	' row 4	
+		DrawNumberPanel(pnlCtrlrTemp, "Ctrl", "", False, 4)
+		DrawNumberPanel(pnlWhkm, "Wh/km", "", False, 4)	
 		
-		DrawNumberPanel(pnlOdo, "CP speed", "km/h", False, 5)		' row 5			' CP speed (to compare with BF speed for sanity check)
+		DrawNumberPanel(pnlOdo, "CP cad", "rpm", False, 5)		' row 5			' CP cadence (to compare with BF for sanity check)
 		
 		' Start logging the data to the log file.
+		' TODO: This appears when returning from Page 2 - it shouldn't.
 		Logger.Initialize(File.OpenOutput(File.DirInternal, "BabelVESC.csv", False))
-		Logger.WriteLine("WheelTime,WheelRev,CrankTime,CrankRev,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp")
+		Logger.WriteLine("WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp")
 
 	Else if ConnectedDeviceType == 2 Then
 		UpdateTimer.Enabled = True
@@ -259,11 +262,11 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlAmps)
 		DrawNumberPanelBlank(pnlRange)
 		DrawNumberPanelBlank(pnlLimit)
-		DrawNumberPanelBlank(pnlWheelSize)
+		DrawNumberPanelBlank(pnlAmpsReq)
 		DrawNumberPanelBlank(pnlCirc)
-		DrawNumberPanelBlank(pnlNewLimit)
-		DrawNumberPanelBlank(pnlNewWheelSize)
-		DrawNumberPanelBlank(pnlNewCirc)
+		DrawNumberPanelBlank(pnlMotorTemp)
+		DrawNumberPanelBlank(pnlCtrlrTemp)
+		DrawNumberPanelBlank(pnlWhkm)
 		DrawNumberPanelBlank(pnlOdo)
 
 	Else If ConnectedDeviceType == 1 Then
@@ -290,11 +293,11 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlPAS)
 		DrawNumberPanelBlank(pnlRange)
 		DrawNumberPanelBlank(pnlLimit)
-		DrawNumberPanelBlank(pnlWheelSize)
+		DrawNumberPanelBlank(pnlAmpsReq	)
 		DrawNumberPanelBlank(pnlCirc)
-		DrawNumberPanelBlank(pnlNewLimit)
-		DrawNumberPanelBlank(pnlNewWheelSize)
-		DrawNumberPanelBlank(pnlNewCirc)
+		DrawNumberPanelBlank(pnlMotorTemp)
+		DrawNumberPanelBlank(pnlCtrlrTemp)
+		DrawNumberPanelBlank(pnlWhkm)
 		DrawNumberPanelBlank(pnlOdo)
 
 	Else
@@ -319,11 +322,11 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlPAS)
 		DrawNumberPanelBlank(pnlRange)
 		DrawNumberPanelBlank(pnlLimit)
-		DrawNumberPanelBlank(pnlWheelSize)
+		DrawNumberPanelBlank(pnlAmpsReq)
 		DrawNumberPanelBlank(pnlCirc)
-		DrawNumberPanelBlank(pnlNewLimit)
-		DrawNumberPanelBlank(pnlNewWheelSize)
-		DrawNumberPanelBlank(pnlNewCirc)
+		DrawNumberPanelBlank(pnlMotorTemp)
+		DrawNumberPanelBlank(pnlCtrlrTemp)
+		DrawNumberPanelBlank(pnlWhkm)
 		DrawNumberPanelBlank(pnlOdo)
 
 	End If
@@ -364,7 +367,9 @@ Private Sub B4XPage_Appear
 	cp.Initialize(gmap.MyLocation.Latitude, gmap.MyLocation.Longitude, 16)
 	Log("Setting camera position")
 	gmap.MoveCamera(cp)
-	
+	prevLocation.Latitude = gmap.MyLocation.Latitude
+	prevLocation.Longitude = gmap.MyLocation.Longitude
+		
 	' Start maps in night mode
 	btnNight_Click
 	
@@ -516,12 +521,15 @@ Sub UpdateTripMaxAvg(dist As Float, speed As Float)
 	DrawNumberPanelValue(pnlAvg, AvgSpdx10, 10, 1, "")
 
 	' BabelVESC supplies watts. Calculate average Wh/km and range in km.
+	' Don't display the range until we have some distance under the belt.
 	If ConnectedDeviceType == 3 Then	
 		Wh = Wh + (watts * hours)
-		Dim Whkm As Float = Wh / Trip
-		DrawNumberPanelValue(pnlNewCirc, (Whkm * 10).As(Int), 10, 0, "")
-		Dim range As Float = batCapacity * batPercent / Whkm
-		DrawNumberPanelValue(pnlRange, (range * 10).As(Int), 10, 0, "")
+		If Trip >= 1 Then
+			Dim Whkm As Float = Wh / Trip
+			DrawNumberPanelValue(pnlWhkm, (Whkm * 10).As(Int), 10, 0, "")
+			Dim range As Float = (batCapacity * batPercent) / (Whkm * 100)
+			DrawNumberPanelValue(pnlRange, range.As(Int), 1, 0, "")
+		End If
 	End If
 End Sub
 
@@ -612,7 +620,7 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				cadence = Unsigned(b(2))
 				DrawNumberPanelValue(pnlCadence, cadence, 1, 0, "")
 				ampsreqx100 = Unsigned2(b(9), b(10))
-				DrawNumberPanelValue(pnlWheelSize, ampsreqx100, 100, 1, "A")	' requested amps
+				DrawNumberPanelValue(pnlAmpsReq, ampsreqx100, 100, 1, "A")	
 
 				watts = Unsigned2(b(3), b(4))
 				DrawNumberPanelValue(pnlPower, watts, 1, 0, "W")
@@ -623,11 +631,9 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				' Note these are signed as they might be negative (brrrr...)
 				' TODO fix the names of the fields.
 				mtemp = b(12) - 40
-				DrawNumberPanelValue(pnlNewLimit, mtemp, 1, 0, "C")			' motor temp
+				DrawNumberPanelValue(pnlMotorTemp, mtemp, 1, 0, "C")
 				ctemp = b(13) - 40
-				DrawNumberPanelValue(pnlNewWheelSize, ctemp, 1, 0, "C")		' controller temp
-				pas = Unsigned(b(11))
-				DrawStringPanelValue(pnlPAS, PASLevels(pas))
+				DrawNumberPanelValue(pnlCtrlrTemp, ctemp, 1, 0, "C")
 				
 			else If id.ToLowerCase.StartsWith("0000fff2") Then
 				' Motor settings. 
@@ -635,9 +641,11 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				DrawNumberPanelValue(pnlLimit, SpeedLimitx100, 100, 0, "")
 				WheelCirc = Unsigned2(b(2), b(3))
 				DrawNumberPanelValue(pnlCirc, WheelCirc, 1, 0, "")
+				pas = Unsigned(b(4))
+				DrawStringPanelValue(pnlPAS, PASLevels(pas))
 
-			else If id.ToLowerCase.StartsWith("0000fff3") Then						' TODO remove this when decided how to do it
-				' Writable new settings. Remember the service and char ID's for later writing
+			else If id.ToLowerCase.StartsWith("0000fff3") Then
+				' Writable new motor settings. Remember the service and char ID's for later writing
 				settingsService = ServiceId
 				settingsChar = id
 				
@@ -659,8 +667,8 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				End If
 				If (crankTime - lastCrankTime > 0) Then
 					' Cadence in rpm. Sanity check it to the old odo field.
-					Dim cad As Int = ((crankRev - lastCrankRev) * 60000) / (crankTime - lastCrankTime)
-					DrawNumberPanelValue(pnlOdo, cad, 1, 0, "")
+					Dim cpcad As Int = ((crankRev - lastCrankRev) * 60000) / (crankTime - lastCrankTime)
+					DrawNumberPanelValue(pnlOdo, cpcad, 1, 0, "")
 				End If
 				lastCrankRev = crankRev
 				lastCrankTime = crankTime
@@ -678,11 +686,13 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 						Dim volts As Float = voltsx100 / 100.0					
 						Dim amps As Float = ampsx100 / 100.0
 						Dim ampsreq As Float = ampsreqx100 / 100.0
-						' (WheelTime,WheelRev,CrankTime, CrankRev,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp)
+						' (WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp)
 						Logger.Write("" & wheelTime)
 						Logger.Write("," & wheelRev)
 						Logger.Write("," & crankTime)
 						Logger.Write("," & crankRev)
+						Logger.Write("," & prevLocation.Latitude)
+						Logger.Write("," & prevLocation.Longitude)
 						Logger.Write("," & speed)
 						Logger.Write("," & cadence)
 						Logger.Write("," & watts)
@@ -1076,20 +1086,61 @@ Private Sub LongPressTimer_Tick
 	'cvsSpeed.Invalidate
 End Sub
 
+Private Sub PAS_up_Click
+	pas = pas + 1
+	If pas > 5 Then
+		pas = 5
+	End If
+	WritePAS
+End Sub
+
+Private Sub PAS_down_Click
+	pas = pas - 1
+	If pas < 0 Then
+		pas = 0
+	End If
+	WritePAS
+End Sub
+
+' Called to write a possibly new PAS level. The speed limit and wheel circ are unchanged.
+' Stop the update timer so we don't get read/write collisions.
+Public Sub WritePAS
+	Dim b(7) As Byte
+
+	b(0) = Bit.And(SpeedLimitx100, 0xFF)
+	b(1) = Bit.And(Bit.ShiftRight(SpeedLimitx100, 8), 0xFF)
+	b(2) = Bit.And(WheelCirc, 0xFF)
+	b(3) = Bit.And(Bit.ShiftRight(WheelCirc, 8), 0xFF)
+	b(4) = pas
+	b(5) = 0
+	b(6) = 0
+	
+	UpdateTimer.Enabled = False
+	Sleep(600)	' wait for all reads to complete
+	Log("Writing " & bc.HexFromBytes(b) & " to " & settingsService & " " & settingsChar)
+	Starter.manager.WriteData(settingsService, settingsChar, b)
+	' This is re-enabled in the WriteComplete event
+	'UpdateTimer.Enabled = True
+	
+End Sub
+
+
 ' Called from Page 2 to save selected settings and write them to the peripheral.
+' The update timer is not running, and all reads will have completed, so there's
+' no need to manage it.
 Public Sub WriteMotorSettings
 	Dim b(7) As Byte
 
-	NewSpeedLimitx100 = Page2.sel_limit
-	NewWheelSize124 = Page2.sel_wheel
-	NewWheelCirc = Page2.sel_circ
+	SpeedLimitx100 = Page2.sel_limit
+	WheelCirc = Page2.sel_circ
 	
-	b(0) = Bit.And(NewSpeedLimitx100, 0xFF)
-	b(1) = Bit.And(Bit.ShiftRight(NewSpeedLimitx100, 8), 0xFF)
-	b(2) = Bit.And(NewWheelCirc, 0xFF)
-	b(3) = Bit.And(Bit.ShiftRight(NewWheelCirc, 8), 0xFF)
-	b(4) = Bit.And(NewWheelSize124, 0xFF)
-	b(5) = Bit.And(Bit.ShiftRight(NewWheelSize124, 8), 0xFF)
+	b(0) = Bit.And(SpeedLimitx100, 0xFF)
+	b(1) = Bit.And(Bit.ShiftRight(SpeedLimitx100, 8), 0xFF)
+	b(2) = Bit.And(WheelCirc, 0xFF)
+	b(3) = Bit.And(Bit.ShiftRight(WheelCirc, 8), 0xFF)
+	b(4) = pas
+	b(5) = 0
+	b(6) = 0
 	
 	Log("Writing " & bc.HexFromBytes(b) & " to " & settingsService & " " & settingsChar)
 	Starter.manager.WriteData(settingsService, settingsChar, b)
@@ -1115,12 +1166,12 @@ Sub ShowHideAllPanels
 	ShowHidePanel(pnlAmps)
 
 	ShowHidePanel(pnlLimit)
-	ShowHidePanel(pnlWheelSize)
+	ShowHidePanel(pnlAmpsReq)
 	ShowHidePanel(pnlCirc)
 
-	ShowHidePanel(pnlNewLimit)
-	ShowHidePanel(pnlNewWheelSize)
-	ShowHidePanel(pnlNewCirc)
+	ShowHidePanel(pnlMotorTemp)
+	ShowHidePanel(pnlCtrlrTemp)
+	ShowHidePanel(pnlWhkm)
 		
 	ShowHidePanel(pnlOdo)
 
