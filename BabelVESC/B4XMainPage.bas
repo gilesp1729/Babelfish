@@ -284,15 +284,9 @@ Sub btnSave_Click
 			' Pass clicks back to Page 2 when its Save button is pressed.
 			Page2.SaveCallback
 
-#if 0			
 		Case "page 1"
-			' Throw to Page 3
-			B4XPages.ShowPage("Page 3")
-			'Can only set title after page is shown.
-			B4XPages.SetTitle(Page3, ConnectedName)
-			Dim pws As PhoneWakeState
-			pws.KeepAlive(True)
-#end if
+			' Pass clicks back to Page 1 when its Save button is pressed.
+			Page1.SaveCallback
 	End Select
 End Sub
 

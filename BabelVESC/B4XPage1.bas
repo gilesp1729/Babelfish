@@ -51,7 +51,8 @@ Sub Class_Globals
 	
 	' For the speed dial display
 	Private Const Pi As Float = 3.14159
-	Private Const gap As Float = 20dip
+	Private Const stripe As Float = 20dip
+	Private Const indent As Float = 20dip
 	Private Const stp As Float = 0.05
 	Private cvsSpeed As B4XCanvas
 	
@@ -99,6 +100,7 @@ Sub Class_Globals
 	
 	' For logging
 	Private Logger As TextWriter
+	Private saveLog As Boolean = True
 	Dim Speedx100 As Int
 	Dim cadence As Int
 	Dim ampsx100 As Int
@@ -123,13 +125,13 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	Log("Page Create")
 	Root = Root1
 	Root.LoadLayout("Page1")
-	UpdateTimer.Initialize("UpdateTimer", 500)
+	UpdateTimer.Initialize("UpdateTimer", 700)
 	LongPressTimer.Initialize("LongPressTimer", 1500)
 	
 	bgndColor = Starter.bgndColor
 	borderColor = Starter.borderColor
 	textColor = Starter.textColor
-	cvsSpeed.Initialize(pnlSpeed)
+	cvsSpeed.Initialize(pnlSpeed)	
 	PolyPts.Initialize
 	Provider.Initialize
 	prevLocation.Initialize
@@ -145,10 +147,10 @@ Private Sub B4XPage_Appear
 	' Set background panel to the background color
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
 
-	' Set action bar to show the save button. Not used yet but might be for pause/resume later.
+	' Set action bar to show the save button. 
 	MainPage = B4XPages.GetPage("MainPage")
 	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
-	MainPage.btnSave.Text = "Not Used"	
+	MainPage.btnSave.Text = "Save Log"	
 	
 	' Go through the list of services and find out what we are connected to.
 	' 0 = no relevant services (we just use the GPS for speed)
@@ -231,14 +233,14 @@ Private Sub B4XPage_Appear
 
 		DrawNumberPanel(pnlMotorTemp, "Motor", "", False, 4)	' row 4	
 		DrawNumberPanel(pnlCtrlrTemp, "Ctrl", "", False, 4)
-		DrawNumberPanel(pnlWhkm, "Wh/km", "", False, 4)	
 		
-		DrawNumberPanel(pnlOdo, "CP cad", "rpm", False, 5)		' row 5			' CP cadence (to compare with BF for sanity check)
+		DrawNumberPanelBlank(pnlOdo)							' row 5
+		DrawNumberPanel(pnlWhkm, "Wh/km", "", False, 5)
 		
 		' Start logging the data to the log file.
-		' TODO: This appears when returning from Page 2 - it shouldn't.
 		Logger.Initialize(File.OpenOutput(File.DirInternal, "BabelVESC.csv", False))
-		Logger.WriteLine("WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp")
+		Logger.WriteLine("WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Trip,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp")
+		saveLog = True
 
 	Else if ConnectedDeviceType == 2 Then
 		UpdateTimer.Enabled = True
@@ -246,7 +248,8 @@ Private Sub B4XPage_Appear
 		' Set up for CP service
 		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
 		DrawSpeedDial(pnlSpeed, cvsSpeed)
-
+		saveLog = False
+		
 		DrawNumberPanel(pnlBattery, "", "", True, 0)
 		DrawNumberPanel(pnlCadence, "", "rpm", True, 0)	' Don't show "cad" as it gets in the way of the speed dial
 		DrawNumberPanel(pnlPAS, "Power", "", True, 0)		' Use PAS field for power to keep it neat.
@@ -277,6 +280,7 @@ Private Sub B4XPage_Appear
 		' but we just put up the panel anyway.
 		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
 		DrawSpeedDial(pnlSpeed, cvsSpeed)
+		saveLog = False
 
 		DrawNumberPanel(pnlBattery, "", "", True, 0)
 		DrawNumberPanel(pnlCadence, "", "rpm", True, 0)	' Don't show "cad" as it gets in the way of the speed dial
@@ -306,6 +310,7 @@ Private Sub B4XPage_Appear
 		' Don't start the update timer, but start the GPS service to obtain speed readings.
 		ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
 		DrawSpeedDial(pnlSpeed, cvsSpeed)
+		saveLog = False
 
 		DrawNumberPanelBlank(pnlBattery)
 		DrawNumberPanelBlank(pnlCadence)
@@ -383,25 +388,7 @@ Private Sub B4XPage_Disappear
 	Log ("Page 1 disappear")
 	UpdateTimer.Enabled = False
 	MainPage.Gnss1.Stop
-	If ConnectedDeviceType == 3 Then
-		Logger.Close
-		'Log("Log file size: " & File.Size(File.DirInternal, "BabelVESC.csv"))
-		
-		' Save the file to someplace sensible by sharing it.
-		' Date/time code  to generate a unique filename to save
-		Dim filename As String
-		DateTime.DateFormat = "yyyyMMdd"
-		DateTime.TimeFormat = "HHmmss"
-		filename = "BabelVESC-" & DateTime.Date(DateTime.Now) & "-" & DateTime.Time(DateTime.Now) & ".csv"
-		
-		File.Copy(File.DirInternal, "BabelVESC.csv", Provider.SharedFolder, filename)
-		Dim in As Intent
-		in.Initialize(in.ACTION_SEND, "")
-		in.SetType("text/plain")
-		in.PutExtra("android.intent.extra.STREAM", Provider.GetFileUri(filename))
-		in.Flags = 1 'FLAG_GRANT_READ_URI_PERMISSION
-		StartActivity(in)
-	End If
+	
 End Sub
 
 '--------------------------------------------------------------------------
@@ -427,7 +414,7 @@ Sub Gnss1_LocationChanged (Location1 As Location)
 			DrawSpeedDial(pnlSpeed, cvsSpeed)
 			Dim Speedx100 As Int = Location1.Speed * 360
 			DrawSpeedPanelValue(Speedx100, 100)
-			DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx100 / 10)
+			DrawSpeedStripe(pnlSpeed, cvsSpeed, indent, Colors.Green, Speedx100 / 10)
 			DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
 			DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
 
@@ -444,9 +431,7 @@ Sub Gnss1_LocationChanged (Location1 As Location)
 		DrawStringPanelValue(pnlClock, DateTime.Time(DateTime.Now))
 	End If
 	
-	' All devices:
-	' Try out bearing-up orientation of the map.
-	' TODO: make the bearings running averages, or something? The map is too jittery.
+	' All devices: bearing-up orientation of the map.
 	Dim cp As CameraPosition
 	cp.Initialize2(Location1.Latitude, Location1.Longitude, gmap.CameraPosition.Zoom, prevLocation.BearingTo(Location1), 0)
 	gmap.MoveCamera(cp)
@@ -504,8 +489,8 @@ Sub UpdateTripMaxAvg(dist As Float, speed As Float)
 	If speed == 0 Then
 		Return		' don't accumulate stopped samples
 	End If
-	If dist == 0 Then
-		Return		' don't accumulate stopped samples
+	If dist <= 0 Then
+		Return		' don't accumulate stopped samples ot stale data from previous connections
 	End If
 
 	Dim hours As Float = dist / speed
@@ -516,7 +501,7 @@ Sub UpdateTripMaxAvg(dist As Float, speed As Float)
 	End If
 	AvgSpdx10 = (Trip * 10) / Time
 
-	DrawNumberPanelValue(pnlTrip, (Trip * 10).As(Int), 10, 0, "")
+	DrawNumberPanelValue(pnlTrip, (Trip * 10).As(Int), 10, 1, "")
 	DrawNumberPanelValue(pnlMax, MaxSpdx10, 10, 0, "")
 	DrawNumberPanelValue(pnlAvg, AvgSpdx10, 10, 1, "")
 
@@ -561,9 +546,10 @@ Sub UpdateTimer_Tick
 		Return
 	End If
 
-	' When timer fires, read all the characteristics for all the wanted services.
+	' Queue reads for all the characteristics for all the wanted services.
+	' TODO: OutstandingReads = OutstandingReads + servList.Size (but it all seems to work so leave it alone!)
 	For Each s As String In servList
-		'Log("ReadData from " & s)
+		'Log("ReadData from " & s & " Timestamp " & DateTime.Now)
 		Starter.manager.ReadData(s)
 	Next
 	
@@ -597,7 +583,7 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 	Dim PASLevels() As String
 	PASLevels = Array As String ("Off", "Eco", "Tour", "Sport", "Sp+", "Boost")
 	'Log("------------------- AVAIL CALLBACK -----------------------")
-	'Log("Service " & ServiceId)
+	'Log("Service " & ServiceId & " Timestamp " & DateTime.Now)
 	For Each id As String In Characteristics.Keys
 		'Log("Char ID " & id)
 		'Log("Props " & Starter.manager.GetCharacteristicProperties(ServiceId, id))
@@ -612,7 +598,8 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
 				DrawSpeedDial(pnlSpeed, cvsSpeed)
 				DrawSpeedPanelValue(Speedx100, 100)
-				DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx100 / 10)
+				DrawSpeedStripe(pnlSpeed, cvsSpeed, indent, Colors.Green, Speedx100 / 10)
+				
 				' Draw things that have to appear on top of the speed stripe
 				DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
 				DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
@@ -622,14 +609,17 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				ampsreqx100 = Unsigned2(b(9), b(10))
 				DrawNumberPanelValue(pnlAmpsReq, ampsreqx100, 100, 1, "A")	
 
+				' Draw the power stripe inside the speed dial.
 				watts = Unsigned2(b(3), b(4))
 				DrawNumberPanelValue(pnlPower, watts, 1, 0, "W")
+				DrawSpeedStripe(pnlSpeed, cvsSpeed, 2.5 * indent, Colors.Red, watts)
+
+				' Volts, Amps and temperatures
 				voltsx100 = Unsigned2(b(5), b(6))
 				DrawNumberPanelValue(pnlVolts, voltsx100, 100, 1, "V")
 				ampsx100 = Unsigned2(b(7), b(8))
 				DrawNumberPanelValue(pnlAmps, ampsx100, 100, 1, "A")
 				' Note these are signed as they might be negative (brrrr...)
-				' TODO fix the names of the fields.
 				mtemp = b(12) - 40
 				DrawNumberPanelValue(pnlMotorTemp, mtemp, 1, 0, "C")
 				ctemp = b(13) - 40
@@ -665,11 +655,6 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				If lastCrankRev == 0 Then
 					lastCrankRev = crankRev
 				End If
-				If (crankTime - lastCrankTime > 0) Then
-					' Cadence in rpm. Sanity check it to the old odo field.
-					Dim cpcad As Int = ((crankRev - lastCrankRev) * 60000) / (crankTime - lastCrankTime)
-					DrawNumberPanelValue(pnlOdo, cpcad, 1, 0, "")
-				End If
 				lastCrankRev = crankRev
 				lastCrankTime = crankTime
 				
@@ -686,13 +671,14 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 						Dim volts As Float = voltsx100 / 100.0					
 						Dim amps As Float = ampsx100 / 100.0
 						Dim ampsreq As Float = ampsreqx100 / 100.0
-						' (WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp)
+						' (WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Trip,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp)
 						Logger.Write("" & wheelTime)
 						Logger.Write("," & wheelRev)
 						Logger.Write("," & crankTime)
 						Logger.Write("," & crankRev)
 						Logger.Write("," & prevLocation.Latitude)
 						Logger.Write("," & prevLocation.Longitude)
+						Logger.Write("," & Trip)
 						Logger.Write("," & speed)
 						Logger.Write("," & cadence)
 						Logger.Write("," & watts)
@@ -718,7 +704,9 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				' is always present, since we can't handle separate devices for speed and cadence.
 				Dim flags As Int = Unsigned2(b(0), b(1))
 				' Power is bytes 2/3. Use the Range field to keep things neatly within the speed dial.
-				DrawNumberPanelValue(pnlPAS, Unsigned2(b(2), b(3)), 1, 0, "W")
+				watts = Unsigned2(b(2), b(3))
+				DrawNumberPanelValue(pnlPAS, watts, 1, 0, "W")
+				DrawSpeedStripe(pnlSpeed, cvsSpeed, 2.5 * indent, Colors.Red, watts)
 
 				' Wheel revolutions and wheel time
 				Dim wheelRev As Int = Unsigned4(b(4), b(5), b(6), b(7))
@@ -733,7 +721,7 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 					ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
 					DrawSpeedDial(pnlSpeed, cvsSpeed)
 					DrawSpeedPanelValue(Speedx10, 10)
-					DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx10)
+					DrawSpeedStripe(pnlSpeed, cvsSpeed, indent, Colors.Green, Speedx10)
 					UpdateTripMaxAvg(((wheelRev - lastWheelRev) * circ).As(Float) / 1000000, Speedx10.As(Float) / 10)
 					DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
 					DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
@@ -778,7 +766,7 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 					ClearSpeedDial(pnlSpeed, cvsSpeed, "Speed", "km/h")
 					DrawSpeedDial(pnlSpeed, cvsSpeed)
 					DrawSpeedPanelValue(Speedx10, 10)
-					DrawSpeedStripe(pnlSpeed, cvsSpeed, Speedx10)
+					DrawSpeedStripe(pnlSpeed, cvsSpeed, indent, Colors.Green, Speedx10)
 					UpdateTripMaxAvg(((wheelRev - lastWheelRev) * circ).As(Float) / 1000000, Speedx10.As(Float) / 10)
 					DrawSpeedMark(pnlSpeed, cvsSpeed, MaxSpdx10, Colors.Red)
 					DrawSpeedMark(pnlSpeed, cvsSpeed, AvgSpdx10, Colors.Yellow)
@@ -937,11 +925,12 @@ End Sub
 ' Generate a path for the speed dial outline (to be stroked for the
 ' framework, or filled for the speed stripe).
 ' The angles are in the mathematical sense (anticlockwise from east)
-Sub SpeedDialPath(pan As Panel, startAngle As Float, finishAngle As Float) As B4XPath
+' 
+Sub SpeedDialPath(pan As Panel, gap As Float, startAngle As Float, finishAngle As Float) As B4XPath	
 	Dim cx As Float = pan.Width / 2
 	Dim cy As Float = pan.Height / 2
 	Dim rad As Float = pan.Height / 2 - gap
-	Dim irad As Float = rad - gap
+	Dim irad As Float = rad - stripe
 	Dim Angle As Float
 	Dim path As B4XPath
 
@@ -965,14 +954,14 @@ End Sub
 
 ' Draw the fixed framework for the speed dial.
 Sub DrawSpeedDial(pan As Panel, cvs As B4XCanvas)
-	Dim path As B4XPath = SpeedDialPath(pan, -Pi / 4, 5 * Pi / 4)
+	Dim path As B4XPath = SpeedDialPath(pan, indent, -Pi / 4, 5 * Pi / 4)
 	cvs.DrawPath(path, textColor, False, 2dip)
 	
 	' Draw the ticks every 5km/h
 	Dim cx As Float = pan.Width / 2
 	Dim cy As Float = pan.Height / 2
-	Dim rad As Float = pan.Height / 2 - gap
-	Dim orad As Float = rad + gap / 2
+	Dim rad As Float = pan.Height / 2 - indent
+	Dim orad As Float = rad + stripe / 2
 	Dim Spd As Int
 	For Spd = 0 To 60 Step 5
 		Dim Angle As Float= SpeedDialAngle(Spd * 10)
@@ -993,16 +982,15 @@ Sub SpeedDialAngle(Speedx10 As Int) As Float
 End Sub
 
 ' Draw the speed stripe on the speed dial. 
-Sub DrawSpeedStripe(pan As Panel, cvs As B4XCanvas, Speedx10 As Int)
+Sub DrawSpeedStripe(pan As Panel, cvs As B4XCanvas, gap As Float, color As Int, Speedx10 As Int)
 	If Speedx10 == 0 Then
 		Return
 	Else If Speedx10 > 600 Then	' Dial tops out at 60km/h
 		Speedx10 = 600
 	End If
 	Dim angleStart As Float = SpeedDialAngle(Speedx10)
-	Dim path As B4XPath = SpeedDialPath(pan, angleStart, 5 * Pi / 4)
-	cvs.DrawPath(path, Colors.Green, True, 0)
-	'cvs.DrawPath(path, Colors.Green, False, 2dip)		' stroking for debugging
+	Dim path As B4XPath = SpeedDialPath(pan, gap, angleStart, 5 * Pi / 4)
+	cvs.DrawPath(path, color, True, 0)
 	cvs.Invalidate
 	
 End Sub
@@ -1015,7 +1003,7 @@ Sub DrawSpeedMark(pan As Panel, cvs As B4XCanvas, Speedx10 As Int, Color As Int)
 	End If
 	Dim angleStart As Float = SpeedDialAngle(Speedx10 + hw)
 	Dim angleFinish As Float = SpeedDialAngle(Speedx10 - hw)
-	Dim path As B4XPath = SpeedDialPath(pan, angleStart, angleFinish)
+	Dim path As B4XPath = SpeedDialPath(pan, indent, angleStart, angleFinish)
 	cvs.DrawPath(path, Color, True, 0)
 	cvs.Invalidate
 	
@@ -1025,11 +1013,11 @@ End Sub
 Sub DrawSpeedLimitSpot(pan As Panel, cvs As B4XCanvas)
 	Dim cx As Float = pan.Width / 2
 	Dim cy As Float = pan.Height / 2
-	Dim rad As Float = pan.Height / 2 - gap
+	Dim rad As Float = pan.Height / 2 - indent
 	Dim Angle As Float = SpeedDialAngle(SpeedLimitx100 / 10)
 	Dim x As Float = cx + rad * Cos(Angle)
 	Dim y As Float = cy - rad * Sin(Angle)
-	Dim r As Float = gap / 2
+	Dim r As Float = stripe / 2
 	cvs.DrawCircle(x, y, r, Colors.White, True, 0)
 	cvs.DrawCircle(x, y, r, Colors.Red, False, 2dip)
 	cvs.Invalidate
@@ -1072,6 +1060,7 @@ Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 				Page2.sel_limit = SpeedLimitx100
 				Page2.sel_wheel = 0		'' TODO get rid of all this stuff
 				Page2.sel_circ = WheelCirc
+				saveLog = False
 				B4XPages.ShowPage("Page 2")
 			End If
 	End Select
@@ -1086,20 +1075,25 @@ Private Sub LongPressTimer_Tick
 	'cvsSpeed.Invalidate
 End Sub
 
+' PAS up/down buttons only have effect when connected to Babelfish.
 Private Sub PAS_up_Click
-	pas = pas + 1
-	If pas > 5 Then
-		pas = 5
+	If ConnectedDeviceType == 3 Then
+		pas = pas + 1
+		If pas > 5 Then
+			pas = 5
+		End If
+		WritePAS
 	End If
-	WritePAS
 End Sub
 
 Private Sub PAS_down_Click
-	pas = pas - 1
-	If pas < 0 Then
-		pas = 0
+	If ConnectedDeviceType == 3 Then
+		pas = pas - 1
+		If pas < 0 Then
+			pas = 0
+		End If
+		WritePAS
 	End If
-	WritePAS
 End Sub
 
 ' Called to write a possibly new PAS level. The speed limit and wheel circ are unchanged.
@@ -1196,3 +1190,26 @@ Sub btnDoubleDown_Click
 	ShowHideAllPanels
 End Sub
 
+' Called when Save button is pressed. Save the log and return to main page.
+Public Sub SaveCallback
+	If saveLog Then
+		Logger.Close
+		'Log("Log file size: " & File.Size(File.DirInternal, "BabelVESC.csv"))
+		
+		' Save the file to someplace sensible by sharing it.
+		' Date/time code  to generate a unique filename to save
+		Dim filename As String
+		DateTime.DateFormat = "yyyyMMdd"
+		DateTime.TimeFormat = "HHmmss"
+		filename = "BabelVESC-" & DateTime.Date(DateTime.Now) & "-" & DateTime.Time(DateTime.Now) & ".csv"
+		
+		File.Copy(File.DirInternal, "BabelVESC.csv", Provider.SharedFolder, filename)
+		Dim in As Intent
+		in.Initialize(in.ACTION_SEND, "")
+		in.SetType("text/plain")
+		in.PutExtra("android.intent.extra.STREAM", Provider.GetFileUri(filename))
+		in.Flags = 1 'FLAG_GRANT_READ_URI_PERMISSION
+		StartActivity(in)
+	End If
+	B4XPages.ClosePage(Me)
+End Sub
