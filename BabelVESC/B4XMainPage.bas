@@ -68,7 +68,7 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	borderColor = Starter.borderColor
 	textColor = Starter.textColor
 	
-	' Put a save button in the action bar for Page 2. It will also be used for a Map button
+	' Put a save button in the action bar for Page 2. It will also be used for a Save Log button
 	' in Page 1, but since there is only one action bar, it must do double duty.
 	' This must be done here (and the clicks trapped here; see below)
 	Dim p As B4XView = xui.CreatePanel("")

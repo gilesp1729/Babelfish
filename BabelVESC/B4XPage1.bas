@@ -147,9 +147,8 @@ Private Sub B4XPage_Appear
 	' Set background panel to the background color
 	pnlBackground.SetColorAndBorder(bgndColor, 0, borderColor, 0)
 
-	' Set action bar to show the save button. 
+	' Set action bar to show the save button if appropriate (type 3 only)
 	MainPage = B4XPages.GetPage("MainPage")
-	B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
 	MainPage.btnSave.Text = "Save Log"	
 	
 	' Go through the list of services and find out what we are connected to.
@@ -241,6 +240,11 @@ Private Sub B4XPage_Appear
 		Logger.Initialize(File.OpenOutput(File.DirInternal, "BabelVESC.csv", False))
 		Logger.WriteLine("WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Trip,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp")
 		saveLog = True
+		
+		' Display the Save Log button and the PAS up/down buttons
+		B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(16, 16))
+		PAS_up.Visible = True
+		PAS_down.Visible = True
 
 	Else if ConnectedDeviceType == 2 Then
 		UpdateTimer.Enabled = True
@@ -271,6 +275,9 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlCtrlrTemp)
 		DrawNumberPanelBlank(pnlWhkm)
 		DrawNumberPanelBlank(pnlOdo)
+		B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(0, 16))  ' remove the save button
+		PAS_up.Visible = False
+		PAS_down.Visible = False
 
 	Else If ConnectedDeviceType == 1 Then
 		UpdateTimer.Enabled = True
@@ -303,6 +310,9 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlCtrlrTemp)
 		DrawNumberPanelBlank(pnlWhkm)
 		DrawNumberPanelBlank(pnlOdo)
+		B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(0, 16))  ' remove the save button
+		PAS_up.Visible = False
+		PAS_down.Visible = False
 
 	Else
 		ToastMessageShow("No usable services found. Defaulting to GPS", False)
@@ -333,6 +343,9 @@ Private Sub B4XPage_Appear
 		DrawNumberPanelBlank(pnlCtrlrTemp)
 		DrawNumberPanelBlank(pnlWhkm)
 		DrawNumberPanelBlank(pnlOdo)
+		B4XPages.GetManager.ActionBar.RunMethod("setDisplayOptions", Array(0, 16))  ' remove the save button
+		PAS_up.Visible = False
+		PAS_down.Visible = False
 
 	End If
 	
