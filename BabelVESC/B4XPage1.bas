@@ -238,7 +238,7 @@ Private Sub B4XPage_Appear
 		
 		' Start logging the data to the log file.
 		Logger.Initialize(File.OpenOutput(File.DirInternal, "BabelVESC.csv", False))
-		Logger.WriteLine("WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Trip,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp")
+		Logger.WriteLine("WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Altitude,Trip,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp")
 		saveLog = True
 		
 		' Display the Save Log button and the PAS up/down buttons
@@ -684,13 +684,14 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 						Dim volts As Float = voltsx100 / 100.0					
 						Dim amps As Float = ampsx100 / 100.0
 						Dim ampsreq As Float = ampsreqx100 / 100.0
-						' (WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Trip,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp)
+						' (WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Altitude,Trip,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp)
 						Logger.Write("" & wheelTime)
 						Logger.Write("," & wheelRev)
 						Logger.Write("," & crankTime)
 						Logger.Write("," & crankRev)
 						Logger.Write("," & prevLocation.Latitude)
 						Logger.Write("," & prevLocation.Longitude)
+						Logger.Write("," & prevLocation.Altitude)
 						Logger.Write("," & Trip)
 						Logger.Write("," & speed)
 						Logger.Write("," & cadence)
@@ -1041,42 +1042,45 @@ End Sub
 ' Interactions with speed dial to display menus, etc.
 
 ' Handle touches, etc. on the speed dial. Long presses via a timer.
+' Only for type 3 (Babelfish) devices
 Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
-	Select Action
-		Case pnlSpeed.ACTION_DOWN
-			DownX = X
-			DownY = Y
-			longPressed = False
-			LongPressTimer.Enabled = True
-			'Log("Down" & X & Y)
-		Case pnlSpeed.ACTION_MOVE
-			If Abs(X - DownX) > 30 Or Abs(Y - DownY) > 30 Then
-				' You move, you lose. Disable the timer
-				longPressed = False
-				LongPressTimer.Enabled = False
-				'Log("Moved" & X & Y)
-				
-				' reset timer and start again
-				LongPressTimer.Enabled = True
+	If ConnectedDeviceType == 3 Then
+		Select Action
+			Case pnlSpeed.ACTION_DOWN
 				DownX = X
 				DownY = Y
-			End If
-		Case pnlSpeed.ACTION_UP
-			' If timer has gone off and we're still pressing the button,
-			' display the settings menu
-			If longPressed Then
-				'Log("Up")
 				longPressed = False
+				LongPressTimer.Enabled = True
+				'Log("Down" & X & Y)
+			Case pnlSpeed.ACTION_MOVE
+				If Abs(X - DownX) > 30 Or Abs(Y - DownY) > 30 Then
+					' You move, you lose. Disable the timer
+					longPressed = False
+					LongPressTimer.Enabled = False
+					'Log("Moved" & X & Y)
+					
+					' reset timer and start again
+					LongPressTimer.Enabled = True
+					DownX = X
+					DownY = Y
+				End If
+			Case pnlSpeed.ACTION_UP
+				' If timer has gone off and we're still pressing the button,
+				' display the settings menu
+				If longPressed Then
+					'Log("Up")
+					longPressed = False
 
-				' Set the selections in Page 2 view lists
-				Page2 = B4XPages.GetPage("Page 2")
-				Page2.sel_limit = SpeedLimitx100
-				Page2.sel_wheel = 0		'' TODO get rid of all this stuff
-				Page2.sel_circ = WheelCirc
-				saveLog = False
-				B4XPages.ShowPage("Page 2")
-			End If
-	End Select
+					' Set the selections in Page 2 view lists
+					Page2 = B4XPages.GetPage("Page 2")
+					Page2.sel_limit = SpeedLimitx100
+					Page2.sel_wheel = 0		'' TODO get rid of all this stuff
+					Page2.sel_circ = WheelCirc
+					saveLog = False
+					B4XPages.ShowPage("Page 2")
+				End If
+		End Select
+	End If
 End Sub
 
 Private Sub LongPressTimer_Tick
@@ -1123,7 +1127,7 @@ Public Sub WritePAS
 	b(6) = 0
 	
 	UpdateTimer.Enabled = False
-	Sleep(600)	' wait for all reads to complete
+	Sleep(600)	' wait for all reads to complete. Not rigorous but seems OK.
 	Log("Writing " & bc.HexFromBytes(b) & " to " & settingsService & " " & settingsChar)
 	Starter.manager.WriteData(settingsService, settingsChar, b)
 	' This is re-enabled in the WriteComplete event
