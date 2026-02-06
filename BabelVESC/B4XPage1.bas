@@ -392,8 +392,8 @@ Private Sub B4XPage_Appear
 	btnNight_Click
 	
 	' Clear the average/max speed and trip distance.
-	Log("Clearing avg/max/trip")
-	ZeroTripMaxAvg
+	' NOT HERE as we don't want to clear it when re-entering from Page 2.
+	' ZeroTripMaxAvg
 	
 End Sub
 
@@ -532,7 +532,7 @@ Sub UpdateTripMaxAvg(dist As Float, speed As Float)
 End Sub
 
 ' Zero the trip, max and average fields. Clear any displayed track on the map.
-Sub ZeroTripMaxAvg
+Public Sub ZeroTripMaxAvg
 	AvgSpdx10 = 0
 	MaxSpdx10 = 0
 	Trip = 0

@@ -252,8 +252,14 @@ Sub Manager_Connected (services As List)
 	Starter.ConnectedServices = services
 	' Throw to Page 1
 	B4XPages.ShowPage("Page 1")
+	
 	'Can only set title after page is shown.
 	B4XPages.SetTitle(Page1, Starter.ConnectedName)
+	
+	' Zero out trip and averages (do this here as we don't want to lose it when comeing back from Page 2)
+	Page1.ZeroTripMaxAvg
+	
+	' Keep phone screen alive
 	Dim pws As PhoneWakeState
 	pws.KeepAlive(True)
 End Sub
