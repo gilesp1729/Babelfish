@@ -105,11 +105,13 @@ Sub Class_Globals
 	Dim cadence As Int
 	Dim ampsx100 As Int
 	Dim ampsreqx100 As Int
+	Dim phase_ampsx100 As Int
 	Dim voltsx100 As Int
 	Dim watts As Int
 	Dim pas As Int
 	Dim mtemp As Int
 	Dim ctemp As Int
+	Dim duty_percent As Int
 
 End Sub
 
@@ -226,19 +228,19 @@ Private Sub B4XPage_Appear
 		DrawNumberPanel(pnlVolts, "Volts", "", False, 2)
 		DrawNumberPanel(pnlAmps, "Amps", "", False, 2)
 
-		DrawNumberPanel(pnlLimit, "Limit", "km/h", False, 3)	' row 3
+		DrawNumberPanel(pnlLimit, "PhaseAmps", "", False, 3)	' row 3		TODO: rename these fields
 		DrawNumberPanel(pnlAmpsReq, "ReqAmps", "", False, 3)	
-		DrawNumberPanel(pnlCirc, "Circ", "mm", False, 3)
+		DrawNumberPanel(pnlCirc, "Duty", "", False, 3)
 
 		DrawNumberPanel(pnlMotorTemp, "Motor", "", False, 4)	' row 4	
 		DrawNumberPanel(pnlCtrlrTemp, "Ctrl", "", False, 4)
 		
-		DrawNumberPanelBlank(pnlOdo)							' row 5
+		DrawNumberPanel(pnlOdo, "Odometer", "km", False, 5)							' row 5
 		DrawNumberPanel(pnlWhkm, "Wh/km", "", False, 5)
 		
 		' Start logging the data to the log file.
 		Logger.Initialize(File.OpenOutput(File.DirInternal, "BabelVESC.csv", False))
-		Logger.WriteLine("WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Altitude,Trip,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp")
+		Logger.WriteLine("WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Altitude,Trip,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,PhaseAmps,Duty,MotorTemp,CtrlTemp")
 		saveLog = True
 		
 		' Display the Save Log button and the PAS up/down buttons
@@ -540,7 +542,7 @@ Public Sub ZeroTripMaxAvg
 	Wh = 0
 	prevLocation.Initialize
 	PolyPts.Clear
-	gmap.Clear	
+	' gmap.Clear	
 End Sub
 
 '--------------------------------------------------------------------------
@@ -591,7 +593,7 @@ End Sub
 ' Callback for DataAvailable event (caught in main page?!).
 ' This handles all characteristics for all possible services.
 Sub AvailCallback(ServiceId As String, Characteristics As Map)
-	Dim b(20) As Byte
+	Dim b(32) As Byte
 	Dim battIcon As String
 	Dim PASLevels() As String
 	PASLevels = Array As String ("Off", "Eco", "Tour", "Sport", "Sp+", "Boost")
@@ -632,18 +634,27 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 				DrawNumberPanelValue(pnlVolts, voltsx100, 100, 1, "V")
 				ampsx100 = Unsigned2(b(7), b(8))
 				DrawNumberPanelValue(pnlAmps, ampsx100, 100, 1, "A")
+				
 				' Note these are signed as they might be negative (brrrr...)
 				mtemp = b(12) - 40
 				DrawNumberPanelValue(pnlMotorTemp, mtemp, 1, 0, "C")
 				ctemp = b(13) - 40
 				DrawNumberPanelValue(pnlCtrlrTemp, ctemp, 1, 0, "C")
 				
+				' Phase current, duty cycle for motor. TODO: Cope with older versions that only send 14 bytes
+				If b.Length > 14 Then				
+					phase_ampsx100 = Unsigned2(b(15), b(16))
+					DrawNumberPanelValue(pnlLimit, phase_ampsx100, 100, 1, "A")
+					duty_percent = b(14)
+					DrawNumberPanelValue(pnlCirc, duty_percent, 1, 0, "%")
+					Dim odometer As Int = Unsigned4(b(17), b(18), b(19), b(20))
+					DrawNumberPanelValue(pnlOdo, odometer, 10000, 0, "")
+				End If
+								
 			else If id.ToLowerCase.StartsWith("0000fff2") Then
-				' Motor settings. 
+				' Motor settings. Speed limit is shown by the blob on the speed dial, and circumference isn't shown.
 				SpeedLimitx100 = Unsigned2(b(0), b(1))
-				DrawNumberPanelValue(pnlLimit, SpeedLimitx100, 100, 0, "")
 				WheelCirc = Unsigned2(b(2), b(3))
-				DrawNumberPanelValue(pnlCirc, WheelCirc, 1, 0, "")
 				pas = Unsigned(b(4))
 				DrawStringPanelValue(pnlPAS, PASLevels(pas))
 
@@ -684,7 +695,8 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 						Dim volts As Float = voltsx100 / 100.0					
 						Dim amps As Float = ampsx100 / 100.0
 						Dim ampsreq As Float = ampsreqx100 / 100.0
-						' (WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Altitude,Trip,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,MotorTemp,CtrlTemp)
+						Dim phase_amps As Float = phase_ampsx100 / 100.0
+						' (WheelTime,WheelRev,CrankTime,CrankRev,Lat,Long,Altitude,Trip,Speed,Cadence,Power,PAS,Volts,Amps,ReqAmps,PhaseAmps,Duty,MotorTemp,CtrlTemp)
 						Logger.Write("" & wheelTime)
 						Logger.Write("," & wheelRev)
 						Logger.Write("," & crankTime)
@@ -700,6 +712,8 @@ Sub AvailCallback(ServiceId As String, Characteristics As Map)
 						Logger.Write("," & volts)
 						Logger.Write("," & amps)
 						Logger.Write("," & ampsreq)
+						Logger.Write("," & phase_amps)
+						Logger.Write("," & duty_percent)
 						Logger.Write("," & mtemp)
 						Logger.WriteLine("," & ctemp)
 					End If
@@ -1074,7 +1088,7 @@ Private Sub pnlSpeed_Touch(Action As Int, X As Float, Y As Float)
 					' Set the selections in Page 2 view lists
 					Page2 = B4XPages.GetPage("Page 2")
 					Page2.sel_limit = SpeedLimitx100
-					Page2.sel_wheel = 0		'' TODO get rid of all this stuff
+					Page2.sel_wheel = 0		'' TODO make this track the wheel circ
 					Page2.sel_circ = WheelCirc
 					saveLog = False
 					B4XPages.ShowPage("Page 2")

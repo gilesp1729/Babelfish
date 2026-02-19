@@ -111,6 +111,9 @@ Private Sub B4XPage_Appear
 		' Determine the closest match in circumference, which is also
 		' an exact match in wheel size. The input circumference might
 		' not be an exact match if it was set by other software (like BESST)
+		
+		' TODO: get this working with just the WheelCirc from he motor settings
+		
 		If val(0) == sel_wheel Then
 			diff_circ = Abs(val(1) - sel_circ)
 			If diff_circ < closest_circ Then
